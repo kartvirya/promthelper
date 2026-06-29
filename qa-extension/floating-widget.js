@@ -241,9 +241,12 @@ function buildWidget() {
 
     .panel-frame {
       flex: 1;
+      min-height: 0;
+      height: 100%;
       border: none;
       width: 100%;
       background: #0f1117;
+      display: block;
     }
   `;
 

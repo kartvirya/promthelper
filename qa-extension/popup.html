@@ -299,7 +299,9 @@
     }
     .btn-row .btn-save,
     .btn-row .btn-cursor,
-    .btn-row .btn-agent {
+    .btn-row .btn-agent,
+    .btn-row .btn-jira,
+    .btn-row .btn-jira-create {
       flex: 1;
     }
 
@@ -329,6 +331,175 @@
     }
     .btn-pick:hover { border-color: var(--accent); color: var(--accent); }
     .btn-pick.has-element { border-style: solid; border-color: var(--green); color: var(--green); }
+    .btn-pick.has-jira { border-style: solid; border-color: #2684ff; color: #4c9aff; }
+
+    .jira-picker-wrap { position: relative; }
+    .jira-search-input {
+      width: 100%;
+      padding: 9px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 12px;
+      outline: none;
+      font-family: var(--font);
+      margin-top: 6px;
+    }
+    .jira-search-input:focus { border-color: #2684ff; }
+    .jira-results {
+      display: none;
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(100% + 4px);
+      max-height: 180px;
+      overflow-y: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      z-index: 20;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+    .jira-results.visible { display: block; }
+    .jira-result-item {
+      padding: 8px 10px;
+      font-size: 11px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      line-height: 1.4;
+    }
+    .jira-result-item:last-child { border-bottom: none; }
+    .jira-result-item:hover { background: #2684ff18; }
+    .jira-result-key { color: #4c9aff; font-weight: 700; }
+    .jira-result-summary { color: var(--text); }
+    .jira-result-status { color: var(--muted); font-size: 10px; }
+    .jira-linked {
+      display: none;
+      background: #2684ff14;
+      border: 1px solid #2684ff44;
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      font-size: 11px;
+      color: var(--text);
+      line-height: 1.5;
+      margin-top: 6px;
+    }
+    .jira-linked.visible { display: block; }
+    .jira-linked strong { color: #4c9aff; }
+    .jira-clear {
+      float: right;
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 11px;
+      padding: 0;
+    }
+    .jira-clear:hover { color: var(--danger); }
+
+    .btn-jira {
+      background: linear-gradient(135deg, #0052cc, #2684ff);
+      color: #fff;
+    }
+    .btn-jira-create {
+      background: linear-gradient(135deg, #006644, #00a884);
+      color: #fff;
+    }
+
+    .jira-actions-row {
+      display: flex;
+      gap: 8px;
+    }
+    .jira-actions-row .btn-pick { flex: 1; }
+
+    .jira-create-panel {
+      display: none;
+      margin-top: 8px;
+      padding: 10px;
+      background: var(--surface2);
+      border: 1px solid #2684ff44;
+      border-radius: var(--radius);
+      gap: 8px;
+      flex-direction: column;
+    }
+    .jira-create-panel.visible { display: flex; }
+    .jira-create-panel .field-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-top: 2px;
+    }
+    .jira-create-panel .field-input,
+    .jira-create-panel select {
+      width: 100%;
+      padding: 8px 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 12px;
+      outline: none;
+      font-family: var(--font);
+    }
+    .jira-create-panel select:focus,
+    .jira-create-panel .field-input:focus { border-color: #2684ff; }
+    .jira-create-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .btn-jira-create-submit {
+      flex: 1;
+      padding: 9px;
+      border: none;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #0052cc, #2684ff);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-jira-create-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-jira-create-cancel {
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: none;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .jira-assignee-row {
+      display: none;
+      margin-top: 8px;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .jira-assignee-row.visible { display: flex; }
+    .jira-assignee-row .field-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .jira-assignee-row select {
+      width: 100%;
+      padding: 8px 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 12px;
+      outline: none;
+      font-family: var(--font);
+    }
+    .jira-assignee-row select:focus { border-color: #2684ff; }
 
     .element-info {
       display: none;
@@ -674,6 +845,35 @@
     <button class="btn-pick" id="btnPickElement">🎯 Pick Element on Page (optional)</button>
     <div class="element-info" id="elementInfo"></div>
 
+    <div class="jira-picker-wrap" id="jiraPickerWrap">
+      <div class="jira-actions-row">
+        <button class="btn-pick" id="btnLinkJira" type="button">🔗 Link Issue</button>
+        <button class="btn-pick" id="btnCreateJira" type="button">➕ New Issue</button>
+      </div>
+      <input class="jira-search-input" id="jiraSearchInput" type="text" placeholder="Search Jira… e.g. PROJ-123 or login bug" style="display:none"/>
+      <div class="jira-results" id="jiraResults"></div>
+      <div class="jira-assignee-row" id="jiraAssigneeRow">
+        <div class="field-label">Assign to</div>
+        <input class="jira-search-input" id="jiraAssigneeSearch" type="text" placeholder="Search people…" style="display:block;margin-top:0"/>
+        <select id="jiraCreateAssignee">
+          <option value="">Unassigned</option>
+        </select>
+      </div>
+      <div class="jira-create-panel" id="jiraCreatePanel">
+        <div class="field-label">Project</div>
+        <input class="field-input" id="jiraCreateProject" type="text" placeholder="PROJ" />
+        <div class="field-label">Summary</div>
+        <input class="field-input" id="jiraCreateSummary" type="text" placeholder="Short issue title" />
+        <div class="field-label">Issue type</div>
+        <select id="jiraCreateType"></select>
+        <div class="jira-create-actions">
+          <button class="btn-jira-create-submit" id="btnCreateJiraIssue" type="button">Create in Jira</button>
+          <button class="btn-jira-create-cancel" id="btnCancelJiraCreate" type="button">Cancel</button>
+        </div>
+      </div>
+      <div class="jira-linked" id="jiraLinked"></div>
+    </div>
+
     <!-- Issue details + actions (always visible — HTML send does not need screenshot) -->
     <div class="comment-row">
       <textarea class="comment-input" id="commentInput" placeholder="Describe the issue — what happened, what was expected…" rows="3"></textarea>
@@ -691,6 +891,10 @@
     <div class="btn-row">
       <button class="btn-cursor btn-chat" id="btnSendChat">💬 Send to Editor</button>
       <button class="btn-cursor btn-agent hidden" id="btnSendAgent">☁️ Cloud Agent</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn-cursor btn-jira" id="btnPushJira">🔗 Push to Jira</button>
+      <button class="btn-cursor btn-jira-create" id="btnCreateJiraQuick">➕ Create Jira Issue</button>
     </div>
 
     <button class="btn-capture" id="btnCapture">
@@ -863,6 +1067,39 @@
       <button class="btn-settings" id="btnTestBridge" style="flex:1">🔌 Test Bridge</button>
       <button class="btn-settings" id="btnSaveSettings" style="flex:1">💾 Save Settings</button>
     </div>
+
+    <div class="section-title">Jira Cloud (optional)</div>
+
+    <div class="field-group">
+      <div class="field-label">Jira Site URL</div>
+      <input class="field-input" id="jiraSiteUrl" type="url" placeholder="https://yourcompany.atlassian.net"/>
+      <div class="field-hint">Your Jira Cloud site — must end with <code>.atlassian.net</code></div>
+    </div>
+
+    <div class="field-group">
+      <div class="field-label">Atlassian Email</div>
+      <input class="field-input" id="jiraEmail" type="email" placeholder="you@company.com" autocomplete="off"/>
+    </div>
+
+    <div class="field-group">
+      <div class="field-label">Jira API Token</div>
+      <input class="field-input" id="jiraApiToken" type="password" placeholder="API token" autocomplete="off"/>
+      <div class="field-hint">Create at <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" style="color:var(--accent)">Atlassian API tokens</a></div>
+    </div>
+
+    <div class="field-group">
+      <div class="field-label">Default Project Key</div>
+      <input class="field-input" id="jiraProjectKey" type="text" placeholder="PROJ"/>
+      <div class="field-hint">Required for creating issues; also narrows search</div>
+    </div>
+
+    <div class="field-group">
+      <div class="field-label">Default Issue Type</div>
+      <input class="field-input" id="jiraDefaultIssueType" type="text" placeholder="Bug"/>
+      <div class="field-hint">Used when creating issues (Bug, Task, Story, …)</div>
+    </div>
+
+    <button class="btn-settings" id="btnVerifyJira">🔑 Verify Jira</button>
 
     <div id="cloudAgentSection">
       <div class="section-title">Cursor Cloud Agent (optional)</div>

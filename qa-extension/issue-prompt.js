@@ -14,6 +14,14 @@ function buildIssuePrompt(issue) {
     ""
   ];
 
+  if (issue.jiraContext?.key) {
+    lines.push("## Linked Jira Issue");
+    lines.push(`- **Key:** ${issue.jiraContext.key}`);
+    if (issue.jiraContext.summary) lines.push(`- **Summary:** ${issue.jiraContext.summary}`);
+    if (issue.jiraContext.url) lines.push(`- **URL:** ${issue.jiraContext.url}`);
+    lines.push("");
+  }
+
   const ec = issue.elementContext;
   if (ec) {
     lines.push("## Element / Code Location");

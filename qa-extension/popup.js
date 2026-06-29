@@ -6,6 +6,9 @@ let currentScreenshot = null;
 let currentUrl = "";
 let currentTitle = "";
 let currentElementContext = null;
+let currentJiraContext = null;
+let jiraSearchTimer = null;
+let jiraAssigneeTimer = null;
 
 let activeTool = "pen";
 let currentColor = "#ff4f6a";
@@ -21,6 +24,17 @@ let canvas = null;
 let ctx = null;
 let bgImage = null;
 
+async function sendBgMessage(payload) {
+  const resp = await chrome.runtime.sendMessage(payload);
+  if (chrome.runtime.lastError) {
+    throw new Error(chrome.runtime.lastError.message);
+  }
+  if (resp === undefined) {
+    throw new Error("Background did not respond — reload the extension in chrome://extensions");
+  }
+  return resp;
+}
+
 // ── Init ─────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", async () => {
   canvas = document.getElementById("drawCanvas");
@@ -29,6 +43,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadIssues();
   await loadSettings();
   await loadElementContext();
+  await loadLinkedJiraIssue();
+  await updateJiraAssigneeVisibility();
   await fetchTabInfo();
   setupTabs();
   setupCapture();
@@ -37,6 +53,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupExport();
   setupIntegrations();
   setupElementPicker();
+  setupJira();
   renderIssuesList();
   updateStats();
 });
@@ -129,6 +146,7 @@ function buildIssueFromForm({ includeScreenshot = false } = {}) {
     severity: currentSeverity,
     screenshot: includeScreenshot ? getAnnotatedScreenshot() : "",
     elementContext: currentElementContext,
+    jiraContext: currentJiraContext,
     timestamp: new Date().toISOString()
   };
 }
@@ -212,6 +230,8 @@ function setupToolbar() {
   document.getElementById("btnSave").addEventListener("click", () => saveIssue(false));
   document.getElementById("btnSendChat").addEventListener("click", sendCurrentToChat);
   document.getElementById("btnSendAgent").addEventListener("click", sendCurrentToCloudAgent);
+  document.getElementById("btnPushJira")?.addEventListener("click", sendCurrentToJira);
+  document.getElementById("btnCreateJiraQuick")?.addEventListener("click", sendCurrentToNewJira);
 }
 
 // ── Canvas drawing ─────────────────────────────────────
@@ -442,6 +462,7 @@ async function saveIssue(andSendToEditor = false) {
     severity: currentSeverity,
     screenshot,
     elementContext: currentElementContext,
+    jiraContext: currentJiraContext,
     timestamp: new Date().toISOString()
   };
   issues.push(issue);
@@ -509,8 +530,10 @@ function renderIssuesList() {
         <div class="issue-comment">${escHtml(issue.comment)}</div>
         <div class="issue-url">🔗 ${escHtml(issue.url)}</div>
         ${issue.elementContext?.selector ? `<div class="issue-url">🎯 ${escHtml(issue.elementContext.selector)}</div>` : ""}
+        ${issue.jiraContext?.key ? `<div class="issue-url">🔗 Jira: ${escHtml(issue.jiraContext.key)} — ${escHtml(issue.jiraContext.summary || "")}</div>` : ""}
         <div class="issue-actions">
           <button class="btn-cursor-sm" onclick="sendSavedIssueToChat(${issue.id})">💬 ${escHtml(targetLabel)}</button>
+          <button class="btn-cursor-sm" onclick="sendSavedIssueToJira(${issue.id})">🔗 Jira</button>
           ${showCloud ? `<button class="btn-cursor-sm" onclick="sendSavedIssueToAgent(${issue.id})">☁️ Agent</button>` : ""}
           <button class="btn-del" onclick="deleteIssue(${issue.id})">🗑 Delete</button>
         </div>
@@ -540,6 +563,11 @@ window.sendSavedIssueToAgent = async function(id) {
   if (issue) await sendToCloudAgent(issue);
 };
 
+window.sendSavedIssueToJira = async function(id) {
+  const issue = issues.find(i => i.id === id);
+  if (issue) await pushToJira(issue);
+};
+
 // ── Editor / AI integrations ──────────────────────────
 const DEFAULT_SETTINGS = {
   editorTarget: "cursor",
@@ -556,7 +584,12 @@ const DEFAULT_SETTINGS = {
   repoBranch: "main",
   modelId: "composer-2",
   continueThread: false,
-  cursorAgentId: ""
+  cursorAgentId: "",
+  jiraSiteUrl: "",
+  jiraEmail: "",
+  jiraApiToken: "",
+  jiraProjectKey: "",
+  jiraDefaultIssueType: "Bug"
 };
 
 let settings = { ...DEFAULT_SETTINGS };
@@ -649,6 +682,11 @@ function applySettingsToForm() {
   setVal("repoBranch", settings.repoBranch || "main");
   setVal("modelId", settings.modelId || "composer-2");
   setVal("cursorAgentId", settings.cursorAgentId || "");
+  setVal("jiraSiteUrl", settings.jiraSiteUrl || "");
+  setVal("jiraEmail", settings.jiraEmail || "");
+  setVal("jiraApiToken", settings.jiraApiToken || "");
+  setVal("jiraProjectKey", settings.jiraProjectKey || "");
+  setVal("jiraDefaultIssueType", settings.jiraDefaultIssueType || "Bug");
 
   const continueThread = document.getElementById("continueThread");
   if (continueThread) continueThread.checked = !!settings.continueThread;
@@ -687,8 +725,35 @@ function readSettingsFromForm() {
     repoBranch: document.getElementById("repoBranch").value.trim() || "main",
     modelId: document.getElementById("modelId").value.trim() || "composer-2",
     continueThread: document.getElementById("continueThread").checked,
-    cursorAgentId: document.getElementById("cursorAgentId").value.trim()
+    cursorAgentId: document.getElementById("cursorAgentId").value.trim(),
+    jiraSiteUrl: document.getElementById("jiraSiteUrl").value.trim(),
+    jiraEmail: document.getElementById("jiraEmail").value.trim(),
+    jiraApiToken: document.getElementById("jiraApiToken").value.trim(),
+    jiraProjectKey: document.getElementById("jiraProjectKey").value.trim(),
+    jiraDefaultIssueType: document.getElementById("jiraDefaultIssueType").value.trim() || "Bug"
   };
+}
+
+async function getJiraSettings() {
+  const data = await chrome.storage.local.get("qaSnapSettings");
+  const stored = { ...DEFAULT_SETTINGS, ...(data.qaSnapSettings || {}), ...settings };
+  const site = document.getElementById("jiraSiteUrl")?.value.trim();
+  const email = document.getElementById("jiraEmail")?.value.trim();
+  const token = document.getElementById("jiraApiToken")?.value.trim();
+  const projectEl = document.getElementById("jiraProjectKey");
+  const defaultTypeEl = document.getElementById("jiraDefaultIssueType");
+  return {
+    ...stored,
+    jiraSiteUrl: site || stored.jiraSiteUrl,
+    jiraEmail: email || stored.jiraEmail,
+    jiraApiToken: token || stored.jiraApiToken,
+    jiraProjectKey: projectEl ? projectEl.value.trim() : stored.jiraProjectKey,
+    jiraDefaultIssueType: defaultTypeEl?.value.trim() || stored.jiraDefaultIssueType || "Bug"
+  };
+}
+
+function jiraSearchMinLength(query) {
+  return /^[A-Za-z][A-Za-z0-9_]*-?\d*$/.test(query) ? 1 : 2;
 }
 
 function setupIntegrations() {
@@ -704,6 +769,7 @@ function setupIntegrations() {
     await persistSettings();
     applySettingsToForm();
     updateIntegrationsUI();
+    await updateJiraAssigneeVisibility();
     showToast("💾 Settings saved");
   });
 
@@ -754,6 +820,24 @@ function setupIntegrations() {
     document.getElementById("agentIdGroup").style.display =
       document.getElementById("continueThread").checked ? "flex" : "none";
   });
+
+  document.getElementById("btnVerifyJira")?.addEventListener("click", async () => {
+    readSettingsFromForm();
+    if (!settings.jiraSiteUrl || !settings.jiraEmail || !settings.jiraApiToken) {
+      showToast("⚠️ Enter Jira site, email, and API token");
+      return;
+    }
+    showToast("🔑 Verifying Jira…");
+    try {
+      const resp = await sendBgMessage({ action: "verifyJira", settings });
+      if (resp?.error) throw new Error(resp.error);
+      await persistSettings();
+      showToast(`✅ Jira OK — ${resp?.me?.displayName || settings.jiraEmail}`);
+      await updateJiraAssigneeVisibility();
+    } catch (e) {
+      showToast("❌ " + (e?.message || "Jira verify failed"));
+    }
+  });
 }
 
 function setupElementPicker() {
@@ -801,6 +885,494 @@ function updateElementContextUI() {
     html += `<br/><strong>Source:</strong> <code>${escHtml(ec.sourceLocation)}</code>`;
   }
   info.innerHTML = html;
+}
+
+// ── Jira integration ──────────────────────────────────
+function hideJiraSearch() {
+  const searchInput = document.getElementById("jiraSearchInput");
+  const results = document.getElementById("jiraResults");
+  if (searchInput) searchInput.style.display = "none";
+  results?.classList.remove("visible");
+}
+
+function hideJiraCreatePanel() {
+  document.getElementById("jiraCreatePanel")?.classList.remove("visible");
+}
+
+function renderJiraAssigneeOptions(users, selectedId = "") {
+  const select = document.getElementById("jiraCreateAssignee");
+  if (!select) return;
+  const options = [`<option value="">Unassigned</option>`];
+  for (const user of users) {
+    const label = user.emailAddress
+      ? `${user.displayName} (${user.emailAddress})`
+      : user.displayName;
+    options.push(
+      `<option value="${escHtml(user.accountId)}">${escHtml(label)}</option>`
+    );
+  }
+  select.innerHTML = options.join("");
+  if (selectedId && [...select.options].some(o => o.value === selectedId)) {
+    select.value = selectedId;
+  }
+}
+
+async function loadJiraAssignees(projectKey, query = "") {
+  const select = document.getElementById("jiraCreateAssignee");
+  if (!select) return;
+
+  const key = (projectKey || "").trim();
+  if (!key) {
+    renderJiraAssigneeOptions([]);
+    return;
+  }
+
+  const previous = select.value;
+  if (!query) {
+    select.innerHTML = `<option value="">Loading people…</option>`;
+  }
+
+  try {
+    const jiraSettings = await getJiraSettings();
+    const resp = await sendBgMessage({
+      action: "searchJiraAssignableUsers",
+      settings: jiraSettings,
+      projectKey: key,
+      query
+    });
+    if (resp?.error) throw new Error(resp.error);
+    renderJiraAssigneeOptions(resp.users || [], previous);
+  } catch {
+    renderJiraAssigneeOptions([]);
+  }
+}
+
+async function updateJiraAssigneeVisibility() {
+  const row = document.getElementById("jiraAssigneeRow");
+  if (!row) return;
+
+  const jiraSettings = await getJiraSettings();
+  const configured = !!(jiraSettings.jiraSiteUrl && jiraSettings.jiraEmail && jiraSettings.jiraApiToken);
+  row.classList.toggle("visible", configured);
+
+  if (configured) {
+    const projectKey =
+      document.getElementById("jiraCreateProject")?.value.trim() ||
+      jiraSettings.jiraProjectKey ||
+      "";
+    if (projectKey) await loadJiraAssignees(projectKey);
+  }
+}
+
+async function openJiraCreatePanel() {
+  const jiraSettings = await getJiraSettings();
+  if (!jiraSettings.jiraSiteUrl || !jiraSettings.jiraEmail || !jiraSettings.jiraApiToken) {
+    showToast("⚠️ Configure Jira in 🤖 AI / Editor tab");
+    document.querySelector('[data-tab="integrations"]')?.click();
+    return;
+  }
+
+  hideJiraSearch();
+  const panel = document.getElementById("jiraCreatePanel");
+  const projectInput = document.getElementById("jiraCreateProject");
+  const summaryInput = document.getElementById("jiraCreateSummary");
+  const typeSelect = document.getElementById("jiraCreateType");
+  if (!panel || !projectInput || !summaryInput || !typeSelect) return;
+
+  projectInput.value = jiraSettings.jiraProjectKey || "";
+  const comment = document.getElementById("commentInput")?.value.trim();
+  summaryInput.value = comment?.split("\n")[0]?.slice(0, 255) || currentTitle || "";
+
+  typeSelect.innerHTML = `<option value="">Loading types…</option>`;
+  panel.classList.add("visible");
+  summaryInput.focus();
+
+  const projectKey = projectInput.value.trim();
+  if (!projectKey) {
+    typeSelect.innerHTML = `<option value="">Set project key first</option>`;
+    return;
+  }
+
+  await loadJiraAssignees(projectKey);
+
+  try {
+    const resp = await sendBgMessage({
+      action: "getJiraIssueTypes",
+      settings: jiraSettings,
+      projectKey
+    });
+    if (resp?.error) throw new Error(resp.error);
+    const types = resp.issueTypes || [];
+    const defaultType = jiraSettings.jiraDefaultIssueType || "Bug";
+    typeSelect.innerHTML = types.map(t =>
+      `<option value="${escHtml(t.id)}" data-name="${escHtml(t.name)}">${escHtml(t.name)}</option>`
+    ).join("");
+    const match = [...typeSelect.options].find(o => o.dataset.name === defaultType || o.textContent === defaultType);
+    if (match) typeSelect.value = match.value;
+  } catch (e) {
+    typeSelect.innerHTML = `<option value="" data-name="Bug">Bug</option><option value="" data-name="Task">Task</option>`;
+  }
+}
+
+async function submitJiraCreate() {
+  const comment = document.getElementById("commentInput")?.value.trim();
+  if (!comment) {
+    showToast("⚠️ Please add a comment first");
+    return;
+  }
+
+  const projectKey = document.getElementById("jiraCreateProject")?.value.trim();
+  const summary = document.getElementById("jiraCreateSummary")?.value.trim();
+  const typeSelect = document.getElementById("jiraCreateType");
+  const jiraSettings = await getJiraSettings();
+  const issueTypeId = typeSelect?.value || "";
+  let issueTypeName = typeSelect?.selectedOptions?.[0]?.dataset?.name || "";
+  if (!issueTypeName) issueTypeName = jiraSettings.jiraDefaultIssueType || "Bug";
+
+  if (!projectKey) {
+    showToast("⚠️ Enter a Jira project key");
+    return;
+  }
+  if (!summary) {
+    showToast("⚠️ Enter an issue summary");
+    return;
+  }
+
+  const assigneeAccountId = document.getElementById("jiraCreateAssignee")?.value.trim() || "";
+
+  const btn = document.getElementById("btnCreateJiraIssue");
+  const quickBtn = document.getElementById("btnCreateJiraQuick");
+  if (btn) btn.disabled = true;
+  if (quickBtn) quickBtn.disabled = true;
+  showToast("➕ Creating Jira issue…");
+
+  try {
+    const issue = buildIssueFromForm({ includeScreenshot: true });
+    const pageCapture = await capturePageHtmlForIssue();
+    const htmlContent = buildIssueHtmlFile(issue, pageCapture?.html, pageCapture?.url);
+    const screenshot = getAnnotatedScreenshot();
+
+    const resp = await sendBgMessage({
+      action: "createJiraIssue",
+      settings: { ...jiraSettings, jiraProjectKey: projectKey },
+      issue,
+      summary,
+      issueTypeId,
+      issueTypeName,
+      projectKey,
+      assigneeAccountId,
+      htmlContent,
+      screenshotDataUrl: screenshot || ""
+    });
+    if (resp?.error) throw new Error(resp.error);
+
+    await selectJiraIssue({
+      key: resp.issueKey,
+      id: resp.issueId,
+      summary: resp.summary || summary,
+      status: resp.status || "To Do",
+      url: resp.issueUrl
+    });
+    hideJiraCreatePanel();
+    showToast(`✅ Created ${resp.issueKey}`);
+  } catch (e) {
+    showToast("❌ " + (e?.message || "Create failed"));
+  } finally {
+    if (btn) btn.disabled = false;
+    if (quickBtn) quickBtn.disabled = false;
+  }
+}
+
+function setupJira() {
+  const btn = document.getElementById("btnLinkJira");
+  const createBtn = document.getElementById("btnCreateJira");
+  const searchInput = document.getElementById("jiraSearchInput");
+  const results = document.getElementById("jiraResults");
+  const projectInput = document.getElementById("jiraCreateProject");
+
+  btn?.addEventListener("click", async () => {
+    const jiraSettings = await getJiraSettings();
+    if (!jiraSettings.jiraSiteUrl || !jiraSettings.jiraEmail || !jiraSettings.jiraApiToken) {
+      showToast("⚠️ Configure Jira in 🤖 AI / Editor tab");
+      document.querySelector('[data-tab="integrations"]')?.click();
+      return;
+    }
+    hideJiraCreatePanel();
+    const visible = searchInput.style.display !== "none";
+    searchInput.style.display = visible ? "none" : "block";
+    results.classList.remove("visible");
+    if (!visible) {
+      searchInput.focus();
+      searchInput.value = "";
+    }
+  });
+
+  createBtn?.addEventListener("click", () => openJiraCreatePanel());
+  document.getElementById("btnCancelJiraCreate")?.addEventListener("click", hideJiraCreatePanel);
+  document.getElementById("btnCreateJiraIssue")?.addEventListener("click", submitJiraCreate);
+
+  projectInput?.addEventListener("change", async () => {
+    const projectKey = projectInput.value.trim();
+    const typeSelect = document.getElementById("jiraCreateType");
+    if (!projectKey || !typeSelect) return;
+    typeSelect.innerHTML = `<option value="">Loading types…</option>`;
+    await loadJiraAssignees(projectKey);
+    try {
+      const jiraSettings = await getJiraSettings();
+      const resp = await sendBgMessage({
+        action: "getJiraIssueTypes",
+        settings: jiraSettings,
+        projectKey
+      });
+      if (resp?.error) throw new Error(resp.error);
+      typeSelect.innerHTML = (resp.issueTypes || []).map(t =>
+        `<option value="${escHtml(t.id)}" data-name="${escHtml(t.name)}">${escHtml(t.name)}</option>`
+      ).join("");
+    } catch {
+      typeSelect.innerHTML = `<option value="" data-name="Bug">Bug</option>`;
+    }
+  });
+
+  const assigneeSearch = document.getElementById("jiraAssigneeSearch");
+  assigneeSearch?.addEventListener("input", () => {
+    clearTimeout(jiraAssigneeTimer);
+    const q = assigneeSearch.value.trim();
+    const projectKey =
+      document.getElementById("jiraCreateProject")?.value.trim() ||
+      settings.jiraProjectKey ||
+      "";
+    jiraAssigneeTimer = setTimeout(() => loadJiraAssignees(projectKey, q), 300);
+  });
+
+  searchInput?.addEventListener("input", () => {
+    clearTimeout(jiraSearchTimer);
+    const q = searchInput.value.trim();
+    if (q.length < jiraSearchMinLength(q)) {
+      results.classList.remove("visible");
+      results.innerHTML = "";
+      return;
+    }
+    jiraSearchTimer = setTimeout(() => runJiraSearch(q), 300);
+  });
+
+  searchInput?.addEventListener("keydown", e => {
+    if (e.key === "Escape") {
+      results.classList.remove("visible");
+      searchInput.style.display = "none";
+    }
+  });
+
+  document.addEventListener("click", e => {
+    if (!document.getElementById("jiraPickerWrap")?.contains(e.target)) {
+      results?.classList.remove("visible");
+    }
+  });
+}
+
+async function runJiraSearch(query) {
+  const results = document.getElementById("jiraResults");
+  if (!results) return;
+
+  const jiraSettings = await getJiraSettings();
+  results.innerHTML = `<div class="jira-result-item" style="color:var(--muted)">Searching…</div>`;
+  results.classList.add("visible");
+
+  try {
+    const resp = await sendBgMessage({
+      action: "searchJiraIssues",
+      settings: jiraSettings,
+      query
+    });
+    if (resp?.error) throw new Error(resp.error);
+
+    const issues = resp.issues || [];
+    if (!issues.length) {
+      const projectHint = jiraSettings.jiraProjectKey
+        ? ` in project <strong>${escHtml(jiraSettings.jiraProjectKey)}</strong>`
+        : "";
+      results.innerHTML =
+        `<div class="jira-result-item" style="color:var(--muted)">` +
+        `No issues found${projectHint}. Try the full key (e.g. PROJ-123) or clear the project filter in settings.` +
+        `</div>`;
+      return;
+    }
+
+    results.innerHTML = issues.map(issue => `
+      <div class="jira-result-item" data-key="${escHtml(issue.key)}" data-id="${escHtml(issue.id)}" data-summary="${escHtml(issue.summary)}" data-status="${escHtml(issue.status)}">
+        <div class="jira-result-key">${escHtml(issue.key)}</div>
+        <div class="jira-result-summary">${escHtml(issue.summary)}</div>
+        <div class="jira-result-status">${escHtml(issue.status || "")}</div>
+      </div>
+    `).join("");
+
+    results.querySelectorAll(".jira-result-item[data-key]").forEach(el => {
+      el.addEventListener("click", () => selectJiraIssue({
+        key: el.dataset.key,
+        id: el.dataset.id,
+        summary: el.dataset.summary,
+        status: el.dataset.status,
+        url: buildJiraIssueUrl(el.dataset.key)
+      }));
+    });
+  } catch (e) {
+    results.innerHTML = `<div class="jira-result-item" style="color:var(--danger)">${escHtml(e.message)}</div>`;
+  }
+}
+
+function buildJiraIssueUrl(key) {
+  const site = (settings.jiraSiteUrl || "").trim().replace(/\/$/, "");
+  if (!site || !key) return "";
+  const base = /^https?:\/\//i.test(site) ? site : `https://${site}`;
+  return `${base}/browse/${key}`;
+}
+
+async function selectJiraIssue(issue) {
+  currentJiraContext = {
+    key: issue.key,
+    id: issue.id,
+    summary: issue.summary,
+    status: issue.status,
+    url: issue.url || buildJiraIssueUrl(issue.key)
+  };
+  await chrome.storage.local.set({ qaLinkedJiraIssue: currentJiraContext });
+  updateJiraContextUI();
+
+  const searchInput = document.getElementById("jiraSearchInput");
+  const results = document.getElementById("jiraResults");
+  if (searchInput) {
+    searchInput.style.display = "none";
+    searchInput.value = "";
+  }
+  results?.classList.remove("visible");
+  showToast(`✅ Linked ${issue.key}`);
+}
+
+async function clearLinkedJiraIssue() {
+  currentJiraContext = null;
+  await chrome.storage.local.remove("qaLinkedJiraIssue");
+  updateJiraContextUI();
+}
+
+async function loadLinkedJiraIssue() {
+  const data = await chrome.storage.local.get("qaLinkedJiraIssue");
+  currentJiraContext = data.qaLinkedJiraIssue || null;
+  updateJiraContextUI();
+}
+
+function updateJiraContextUI() {
+  const btn = document.getElementById("btnLinkJira");
+  const linked = document.getElementById("jiraLinked");
+  const searchInput = document.getElementById("jiraSearchInput");
+
+  if (!currentJiraContext) {
+    btn?.classList.remove("has-jira");
+    if (btn) btn.textContent = "🔗 Link Issue";
+    linked?.classList.remove("visible");
+    if (linked) linked.innerHTML = "";
+    return;
+  }
+
+  btn?.classList.add("has-jira");
+  if (btn) btn.textContent = "🔗 Jira linked — click to change";
+  if (searchInput) searchInput.style.display = "none";
+
+  const j = currentJiraContext;
+  linked?.classList.add("visible");
+  if (linked) {
+    linked.innerHTML =
+      `<button type="button" class="jira-clear" id="btnClearJira">✕ clear</button>` +
+      `<strong>${escHtml(j.key)}</strong>: ${escHtml(j.summary || "")}` +
+      (j.status ? `<br/><span style="color:var(--muted)">${escHtml(j.status)}</span>` : "") +
+      (j.url ? `<br/><a href="${escHtml(j.url)}" target="_blank" style="color:#4c9aff;font-size:10px">Open in Jira</a>` : "");
+    document.getElementById("btnClearJira")?.addEventListener("click", clearLinkedJiraIssue);
+  }
+}
+
+async function sendCurrentToJira() {
+  const comment = document.getElementById("commentInput").value.trim();
+  if (!comment) {
+    showToast("⚠️ Please add a comment first");
+    return;
+  }
+  await pushToJira(buildIssueFromForm({ includeScreenshot: true }));
+}
+
+async function sendCurrentToNewJira() {
+  const comment = document.getElementById("commentInput").value.trim();
+  if (!comment) {
+    showToast("⚠️ Please add a comment first");
+    return;
+  }
+
+  const jiraSettings = await getJiraSettings();
+  if (!jiraSettings.jiraSiteUrl || !jiraSettings.jiraEmail || !jiraSettings.jiraApiToken) {
+    showToast("⚠️ Configure Jira in 🤖 AI / Editor tab");
+    document.querySelector('[data-tab="integrations"]')?.click();
+    return;
+  }
+
+  if (!jiraSettings.jiraProjectKey) {
+    await openJiraCreatePanel();
+    return;
+  }
+
+  const projectInput = document.getElementById("jiraCreateProject");
+  const summaryInput = document.getElementById("jiraCreateSummary");
+  if (projectInput) projectInput.value = jiraSettings.jiraProjectKey;
+  if (summaryInput) {
+    summaryInput.value = comment.split("\n")[0].slice(0, 255) || currentTitle || "";
+  }
+
+  hideJiraCreatePanel();
+  await submitJiraCreate();
+}
+
+async function pushToJira(issue) {
+  const jiraSettings = await getJiraSettings();
+
+  if (!jiraSettings.jiraSiteUrl || !jiraSettings.jiraEmail || !jiraSettings.jiraApiToken) {
+    showToast("⚠️ Configure Jira in 🤖 AI / Editor tab");
+    document.querySelector('[data-tab="integrations"]')?.click();
+    return;
+  }
+
+  const jiraKey = issue.jiraContext?.key || currentJiraContext?.key;
+  if (!jiraKey) {
+    showToast("⚠️ Link a Jira issue first");
+    return;
+  }
+
+  const btn = document.getElementById("btnPushJira");
+  if (btn) btn.disabled = true;
+  showToast("🔗 Pushing to Jira…");
+
+  try {
+    const pageCapture = await capturePageHtmlForIssue();
+    const htmlContent = buildIssueHtmlFile(issue, pageCapture?.html, pageCapture?.url);
+    const screenshot = issue.screenshot || getAnnotatedScreenshot();
+
+    const payload = {
+      ...issue,
+      jiraContext: issue.jiraContext || currentJiraContext
+    };
+
+    const resp = await sendBgMessage({
+      action: "pushToJira",
+      settings: jiraSettings,
+      jiraIssueKey: jiraKey,
+      issue: payload,
+      htmlContent,
+      screenshotDataUrl: screenshot || ""
+    });
+
+    if (resp?.error) throw new Error(resp.error);
+
+    showToast(`✅ Posted to ${jiraKey}`);
+  } catch (e) {
+    showToast("❌ " + e.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 async function prepareImageForApi(dataUrl) {

@@ -36,6 +36,7 @@
     "<all_urls>",
     "https://api.cursor.com/*",
     "http://127.0.0.1:9314/*",
-    "http://localhost:9314/*"
+    "http://localhost:9314/*",
+    "https://*.atlassian.net/*"
   ]
 }

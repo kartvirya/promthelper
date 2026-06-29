@@ -4,6 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>QA Snap</title>
+  <script>
+    if (new URLSearchParams(location.search).get("embed") === "1") {
+      document.documentElement.classList.add("embed-mode");
+    }
+  </script>
   <style>
     /* ── Reset & base ───────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -34,6 +39,22 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
+    }
+
+    html.embed-mode body {
+      width: 100%;
+      max-width: 100%;
+      max-height: none;
+      height: 100%;
+      min-height: 100%;
+    }
+    html.embed-mode .header { display: none; }
+    html.embed-mode .panel { max-height: none; }
+    html.embed-mode .capture-area,
+    html.embed-mode .issues-area,
+    html.embed-mode .export-area,
+    html.embed-mode .cursor-area {
+      max-height: none;
     }
 
     /* ── Header ─────────────────────────────────────── */
@@ -596,6 +617,15 @@
       line-height: 1.4;
     }
     .field-group { display: flex; flex-direction: column; }
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+    }
     .field-row { display: flex; gap: 8px; }
     .field-row .field-group { flex: 1; }
 
@@ -1006,6 +1036,15 @@
   <div class="cursor-area">
     <div class="info-box" id="targetInfoBox">
       Select your editor or AI agent below. The bridge saves page HTML to <code>.qa-snap/latest.html</code> and opens your tool with the bug report.
+    </div>
+
+    <div class="section-title">On-page access</div>
+    <div class="field-group">
+      <label class="checkbox-row">
+        <input type="checkbox" id="floatingButtonEnabled" checked />
+        <span>Show floating button on web pages</span>
+      </label>
+      <div class="field-hint">Accessibility-style icon on every page — click to open QA Snap without the toolbar</div>
     </div>
 
     <div class="section-title">Editor / AI Agent</div>

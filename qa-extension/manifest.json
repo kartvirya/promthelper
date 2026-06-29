@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "QA Snap — Bug Reporter",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Capture, annotate, and export web testing issues with screenshots, drawings, and comments.",
   "permissions": [
     "activeTab",
@@ -24,7 +24,8 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "js": ["content.js", "floating-widget.js"],
+      "run_at": "document_idle"
     }
   ],
   "icons": {
@@ -38,5 +39,19 @@
     "http://127.0.0.1:9314/*",
     "http://localhost:9314/*",
     "https://*.atlassian.net/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "popup.html",
+        "popup.js",
+        "editor-targets.js",
+        "issue-prompt.js",
+        "icons/icon16.png",
+        "icons/icon48.png",
+        "icons/icon128.png"
+      ],
+      "matches": ["<all_urls>"]
+    }
   ]
 }

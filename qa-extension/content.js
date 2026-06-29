@@ -21,7 +21,9 @@ const PAGE_HTML_MAX = 800_000;
 
 function capturePageHtml() {
   const clone = document.documentElement.cloneNode(true);
-  clone.querySelectorAll("#__qaSnapOverlay, #__qaSnapHighlight").forEach(el => el.remove());
+  clone.querySelectorAll(
+    "#__qaSnapOverlay, #__qaSnapHighlight, #__qaSnapWidgetHost"
+  ).forEach(el => el.remove());
 
   let html = "<!DOCTYPE html>\n" + clone.outerHTML;
   const truncated = html.length > PAGE_HTML_MAX;
@@ -38,6 +40,7 @@ function capturePageHtml() {
 }
 
 function startElementPicker() {
+  document.dispatchEvent(new CustomEvent("qa-snap-close-panel"));
   if (document.getElementById("__qaSnapOverlay")) return;
 
   const overlay = document.createElement("div");

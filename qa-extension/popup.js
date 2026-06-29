@@ -35,6 +35,25 @@ async function sendBgMessage(payload) {
   return resp;
 }
 
+function isEmbeddedPanel() {
+  return new URLSearchParams(location.search).get("embed") === "1";
+}
+
+function notifyPageWidget(action) {
+  if (window.parent === window) return;
+  window.parent.postMessage({ source: "qa-snap-panel", action }, "*");
+}
+
+async function hidePageWidgetForAction() {
+  notifyPageWidget("closePanel");
+  notifyPageWidget("hideWidget");
+  await new Promise(resolve => setTimeout(resolve, 150));
+}
+
+function showPageWidgetAfterAction() {
+  notifyPageWidget("showWidget");
+}
+
 // ── Init ─────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", async () => {
   canvas = document.getElementById("drawCanvas");
@@ -105,6 +124,7 @@ function setupCapture() {
     btn.textContent = "Capturing…";
 
     try {
+      await hidePageWidgetForAction();
       const info = await chrome.runtime.sendMessage({ action: "getTabInfo" });
       currentUrl = info?.url || currentUrl;
       currentTitle = info?.title || currentTitle;
@@ -118,13 +138,19 @@ function setupCapture() {
       currentScreenshot = resp.dataUrl;
       loadImageToCanvas(currentScreenshot);
       document.getElementById("editorWrap").classList.add("visible");
+      if (isEmbeddedPanel()) openPanelAfterCapture();
     } catch (e) {
       showToast("❌ Capture failed");
     } finally {
+      showPageWidgetAfterAction();
       btn.disabled = false;
       btn.innerHTML = "<span>📷</span> Capture Screenshot (optional)";
     }
   });
+}
+
+function openPanelAfterCapture() {
+  notifyPageWidget("openPanel");
 }
 
 function getAnnotatedScreenshot() {
@@ -589,7 +615,8 @@ const DEFAULT_SETTINGS = {
   jiraEmail: "",
   jiraApiToken: "",
   jiraProjectKey: "",
-  jiraDefaultIssueType: "Bug"
+  jiraDefaultIssueType: "Bug",
+  floatingButtonEnabled: true
 };
 
 let settings = { ...DEFAULT_SETTINGS };
@@ -688,6 +715,9 @@ function applySettingsToForm() {
   setVal("jiraProjectKey", settings.jiraProjectKey || "");
   setVal("jiraDefaultIssueType", settings.jiraDefaultIssueType || "Bug");
 
+  const floatingButton = document.getElementById("floatingButtonEnabled");
+  if (floatingButton) floatingButton.checked = settings.floatingButtonEnabled !== false;
+
   const continueThread = document.getElementById("continueThread");
   if (continueThread) continueThread.checked = !!settings.continueThread;
 
@@ -730,7 +760,8 @@ function readSettingsFromForm() {
     jiraEmail: document.getElementById("jiraEmail").value.trim(),
     jiraApiToken: document.getElementById("jiraApiToken").value.trim(),
     jiraProjectKey: document.getElementById("jiraProjectKey").value.trim(),
-    jiraDefaultIssueType: document.getElementById("jiraDefaultIssueType").value.trim() || "Bug"
+    jiraDefaultIssueType: document.getElementById("jiraDefaultIssueType").value.trim() || "Bug",
+    floatingButtonEnabled: document.getElementById("floatingButtonEnabled").checked
   };
 }
 
@@ -848,9 +879,10 @@ function setupElementPicker() {
         showToast("❌ Can't pick elements on this page");
         return;
       }
+      await hidePageWidgetForAction();
       await chrome.tabs.sendMessage(tab.id, { action: "startElementPicker" });
       showToast("🎯 Click an element on the page");
-      window.close();
+      if (!isEmbeddedPanel()) window.close();
     } catch {
       showToast("❌ Reload the page and try again");
     }

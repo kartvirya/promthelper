@@ -60,6 +60,7 @@ async function saveFabPosition(x, y) {
 function setWidgetVisible(visible) {
   widgetHidden = !visible;
   if (widgetHost) widgetHost.style.display = visible ? "" : "none";
+  if (fabEl && visible && !panelOpen) fabEl.style.display = "";
 }
 
 function openPanel() {
@@ -68,9 +69,12 @@ function openPanel() {
   panelEl.classList.add("open");
   backdropEl.classList.add("open");
   fabEl?.setAttribute("aria-expanded", "true");
+  if (fabEl) fabEl.style.display = "none";
   if (!iframeEl.src) {
     iframeEl.src = chrome.runtime.getURL("popup.html?embed=1");
+    iframeEl.addEventListener("load", sizePanelFrame, { once: false });
   }
+  sizePanelFrame();
 }
 
 function closePanel() {
@@ -79,6 +83,14 @@ function closePanel() {
   panelEl.classList.remove("open");
   backdropEl.classList.remove("open");
   fabEl?.setAttribute("aria-expanded", "false");
+  if (fabEl && !widgetHidden) fabEl.style.display = "";
+}
+
+function sizePanelFrame() {
+  if (!iframeEl || !panelEl) return;
+  const header = panelEl.querySelector(".panel-header");
+  const headerH = header?.offsetHeight || 48;
+  iframeEl.style.height = `${Math.max(200, window.innerHeight - headerH)}px`;
 }
 
 function togglePanel() {
@@ -210,6 +222,7 @@ function buildWidget() {
       background: #1a1d27;
       border-bottom: 1px solid #2e3248;
       flex-shrink: 0;
+      min-height: 48px;
     }
     .panel-title {
       font-size: 13px;
@@ -236,15 +249,26 @@ function buildWidget() {
       cursor: pointer;
       font-size: 16px;
       line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
     .panel-close:hover { background: #2e3248; }
 
-    .panel-frame {
+    .panel-body {
       flex: 1;
       min-height: 0;
+      position: relative;
+      overflow: hidden;
+      background: #0f1117;
+    }
+
+    .panel-frame {
+      position: absolute;
+      inset: 0;
+      width: 100%;
       height: 100%;
       border: none;
-      width: 100%;
       background: #0f1117;
       display: block;
     }
@@ -267,7 +291,7 @@ function buildWidget() {
   closeBtn.className = "panel-close";
   closeBtn.type = "button";
   closeBtn.setAttribute("aria-label", "Close QA Snap");
-  closeBtn.textContent = "✕";
+  closeBtn.innerHTML = typeof iconHtml === "function" ? iconHtml("x", { size: 16 }) : "×";
   closeBtn.addEventListener("click", closePanel);
   header.appendChild(closeBtn);
 
@@ -275,7 +299,11 @@ function buildWidget() {
   iframeEl.className = "panel-frame";
   iframeEl.title = "QA Snap bug reporter";
 
-  panelEl.append(header, iframeEl);
+  const panelBody = document.createElement("div");
+  panelBody.className = "panel-body";
+  panelBody.appendChild(iframeEl);
+
+  panelEl.append(header, panelBody);
 
   fabEl = document.createElement("button");
   fabEl.className = "fab";
@@ -293,6 +321,8 @@ function buildWidget() {
 
   shadowRoot.append(style, backdropEl, panelEl, fabEl);
   document.documentElement.appendChild(widgetHost);
+
+  window.addEventListener("resize", sizePanelFrame);
 
   chrome.storage.local.get(FAB_POS_KEY).then(data => {
     if (data[FAB_POS_KEY]) applyFabPosition(fabEl, data[FAB_POS_KEY]);

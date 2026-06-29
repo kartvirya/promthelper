@@ -24,7 +24,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js", "floating-widget.js"],
+      "js": ["lucide-icons.js", "content.js", "floating-widget.js"],
       "run_at": "document_idle"
     }
   ],
@@ -45,6 +45,7 @@
       "resources": [
         "popup.html",
         "popup.js",
+        "lucide-icons.js",
         "editor-targets.js",
         "issue-prompt.js",
         "icons/icon16.png",

@@ -95,7 +95,7 @@ function startElementPicker() {
 
     const context = extractElementContext(el);
     chrome.storage.local.set({ qaLastElement: context });
-    showPageToast("✅ Element captured — reopen QA Snap");
+    showPageToast("Element captured — reopen QA Snap", "circle-check");
   }
 
   overlay.addEventListener("mousemove", onMove, true);
@@ -183,13 +183,17 @@ function getReactInfo(el) {
   return { components, sourceLocation };
 }
 
-function showPageToast(msg) {
+function showPageToast(msg, iconName) {
   const t = document.createElement("div");
   t.style.cssText =
     "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:2147483647;" +
     "background:#00e5a0;color:#0f1117;padding:10px 20px;border-radius:20px;font:700 13px system-ui,sans-serif;" +
     "box-shadow:0 4px 20px rgba(0,0,0,0.3);";
-  t.textContent = msg;
+  if (iconName && typeof iconHtml === "function") {
+    t.innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px">${iconHtml(iconName, { size: 14 })}<span>${msg}</span></span>`;
+  } else {
+    t.textContent = msg;
+  }
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 2800);
 }

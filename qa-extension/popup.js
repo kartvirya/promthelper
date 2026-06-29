@@ -54,8 +54,49 @@ function showPageWidgetAfterAction() {
   notifyPageWidget("showWidget");
 }
 
+function applyEmbeddedLayout() {
+  if (!isEmbeddedPanel()) return;
+
+  const fit = () => {
+    const h = window.innerHeight;
+    document.documentElement.style.height = `${h}px`;
+    document.body.style.height = `${h}px`;
+
+    const tabs = document.querySelector(".tabs");
+    const tabsH = tabs?.offsetHeight || 0;
+    const panelH = Math.max(0, h - tabsH);
+
+    document.querySelectorAll(".panel").forEach(panel => {
+      panel.style.height = panel.classList.contains("active") ? `${panelH}px` : "";
+      panel.style.minHeight = panel.classList.contains("active") ? `${panelH}px` : "";
+    });
+
+    const scrollAreas = document.querySelectorAll(
+      ".capture-area, .issues-area, .export-area, .cursor-area"
+    );
+    scrollAreas.forEach(area => {
+      const panel = area.closest(".panel");
+      if (panel?.classList.contains("active")) {
+        area.style.height = `${panelH}px`;
+        area.style.maxHeight = `${panelH}px`;
+      } else {
+        area.style.height = "";
+        area.style.maxHeight = "";
+      }
+    });
+  };
+
+  fit();
+  window.addEventListener("resize", fit);
+  requestAnimationFrame(fit);
+  setTimeout(fit, 50);
+  setTimeout(fit, 200);
+}
+
 // ── Init ─────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", async () => {
+  initLucideIcons();
+  applyEmbeddedLayout();
   canvas = document.getElementById("drawCanvas");
   ctx = canvas?.getContext("2d") || null;
 
@@ -73,6 +114,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupIntegrations();
   setupElementPicker();
   setupJira();
+  setupElementStorageSync();
   renderIssuesList();
   updateStats();
 });
@@ -112,6 +154,7 @@ function setupTabs() {
       document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
       if (btn.dataset.tab === "issues") renderIssuesList();
       if (btn.dataset.tab === "export") updateStats();
+      applyEmbeddedLayout();
     });
   });
 }
@@ -132,7 +175,7 @@ function setupCapture() {
 
       const resp = await chrome.runtime.sendMessage({ action: "captureTab" });
       if (resp?.error) {
-        showToast("❌ " + resp.error);
+        showToast(resp.error, "x");
         return;
       }
       currentScreenshot = resp.dataUrl;
@@ -140,11 +183,11 @@ function setupCapture() {
       document.getElementById("editorWrap").classList.add("visible");
       if (isEmbeddedPanel()) openPanelAfterCapture();
     } catch (e) {
-      showToast("❌ Capture failed");
+        showToast("Capture failed", "x");
     } finally {
       showPageWidgetAfterAction();
       btn.disabled = false;
-      btn.innerHTML = "<span>📷</span> Capture Screenshot (optional)";
+      setButtonLabel(btn, "camera", "Capture Screenshot (optional)", { size: 16 });
     }
   });
 }
@@ -469,13 +512,13 @@ function redrawBg() {
 async function saveIssue(andSendToEditor = false) {
   const comment = document.getElementById("commentInput").value.trim();
   if (!comment) {
-    showToast("⚠️ Please add a comment first");
+    showToast("Please add a comment first", "triangle-alert");
     return null;
   }
 
   const screenshot = getAnnotatedScreenshot();
   if (!screenshot) {
-    showToast("⚠️ Capture a screenshot first to save an annotated issue");
+    showToast("Capture a screenshot first to save an annotated issue", "triangle-alert");
     return null;
   }
 
@@ -493,10 +536,10 @@ async function saveIssue(andSendToEditor = false) {
   };
   issues.push(issue);
   await saveIssues();
-  showToast("✅ Issue #" + issue.num + " saved!");
+  showToast("Issue #" + issue.num + " saved!", "circle-check");
   document.getElementById("commentInput").value = "";
   document.getElementById("editorWrap").classList.remove("visible");
-  document.getElementById("btnCapture").innerHTML = "<span>📷</span> Capture Screenshot (optional)";
+  setButtonLabel(document.getElementById("btnCapture"), "camera", "Capture Screenshot (optional)", { size: 16 });
   currentScreenshot = null;
   bgImage = null;
 
@@ -509,7 +552,7 @@ async function saveIssue(andSendToEditor = false) {
 async function sendCurrentToChat() {
   const comment = document.getElementById("commentInput").value.trim();
   if (!comment) {
-    showToast("⚠️ Please add a comment first");
+    showToast("Please add a comment first", "triangle-alert");
     return;
   }
   await sendToLocalEditor(buildIssueFromForm({ includeScreenshot: false }));
@@ -518,12 +561,12 @@ async function sendCurrentToChat() {
 async function sendCurrentToCloudAgent() {
   const comment = document.getElementById("commentInput").value.trim();
   if (!comment) {
-    showToast("⚠️ Please add a comment first");
+    showToast("Please add a comment first", "triangle-alert");
     return;
   }
   const screenshot = getAnnotatedScreenshot();
   if (!screenshot) {
-    showToast("⚠️ Capture & annotate a screenshot first for Cloud Agent");
+    showToast("Capture & annotate a screenshot first for Cloud Agent", "triangle-alert");
     return;
   }
   await sendToCloudAgent(buildIssueFromForm({ includeScreenshot: true }));
@@ -533,7 +576,7 @@ async function sendCurrentToCloudAgent() {
 function renderIssuesList() {
   const list = document.getElementById("issuesList");
   if (issues.length === 0) {
-    list.innerHTML = `<div class="empty-state"><div class="empty-icon">🐛</div><div>No issues captured yet.<br/>Go to Capture to get started.</div></div>`;
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">${iconHtml("bug", { size: 36, class: "muted" })}</div><div>No issues captured yet.<br/>Go to Capture to get started.</div></div>`;
     return;
   }
 
@@ -547,21 +590,21 @@ function renderIssuesList() {
     <div class="issue-card" id="card-${issue.id}">
       ${issue.screenshot
         ? `<img class="issue-img" src="${issue.screenshot}" alt="Issue screenshot"/>`
-        : `<div class="issue-img" style="padding:24px;text-align:center;color:#7b80a0;font-size:12px">📄 HTML-only issue</div>`}
+        : `<div class="issue-img" style="padding:24px;text-align:center;color:#7b80a0;font-size:12px;display:flex;align-items:center;justify-content:center;gap:6px">${iconHtml("file-text", { size: 14 })} HTML-only issue</div>`}
       <div class="issue-body">
         <div class="issue-meta">
           <span class="issue-num">#${issue.num} · ${formatTime(issue.timestamp)}</span>
           <span class="issue-sev sev-${issue.severity}">${issue.severity}</span>
         </div>
         <div class="issue-comment">${escHtml(issue.comment)}</div>
-        <div class="issue-url">🔗 ${escHtml(issue.url)}</div>
-        ${issue.elementContext?.selector ? `<div class="issue-url">🎯 ${escHtml(issue.elementContext.selector)}</div>` : ""}
-        ${issue.jiraContext?.key ? `<div class="issue-url">🔗 Jira: ${escHtml(issue.jiraContext.key)} — ${escHtml(issue.jiraContext.summary || "")}</div>` : ""}
+        <div class="issue-url">${iconHtml("link", { size: 12 })}<span class="issue-url-text">${escHtml(issue.url)}</span></div>
+        ${issue.elementContext?.selector ? `<div class="issue-url">${iconHtml("crosshair", { size: 12 })}<span class="issue-url-text">${escHtml(issue.elementContext.selector)}</span></div>` : ""}
+        ${issue.jiraContext?.key ? `<div class="issue-url">${iconHtml("link", { size: 12 })}<span class="issue-url-text">Jira: ${escHtml(issue.jiraContext.key)} — ${escHtml(issue.jiraContext.summary || "")}</span></div>` : ""}
         <div class="issue-actions">
-          <button class="btn-cursor-sm" onclick="sendSavedIssueToChat(${issue.id})">💬 ${escHtml(targetLabel)}</button>
-          <button class="btn-cursor-sm" onclick="sendSavedIssueToJira(${issue.id})">🔗 Jira</button>
-          ${showCloud ? `<button class="btn-cursor-sm" onclick="sendSavedIssueToAgent(${issue.id})">☁️ Agent</button>` : ""}
-          <button class="btn-del" onclick="deleteIssue(${issue.id})">🗑 Delete</button>
+          <button class="btn-cursor-sm" onclick="sendSavedIssueToChat(${issue.id})">${btnLabel("message-circle", escHtml(targetLabel), { size: 12 })}</button>
+          <button class="btn-cursor-sm" onclick="sendSavedIssueToJira(${issue.id})">${btnLabel("link", "Jira", { size: 12 })}</button>
+          ${showCloud ? `<button class="btn-cursor-sm" onclick="sendSavedIssueToAgent(${issue.id})">${btnLabel("cloud", "Agent", { size: 12 })}</button>` : ""}
+          <button class="btn-del" onclick="deleteIssue(${issue.id})">${btnLabel("trash-2", "Delete", { size: 12 })}</button>
         </div>
       </div>
     </div>
@@ -583,7 +626,7 @@ window.sendSavedIssueToChat = async function(id) {
 window.sendSavedIssueToAgent = async function(id) {
   const issue = issues.find(i => i.id === id);
   if (!issue?.screenshot) {
-    showToast("⚠️ This issue has no screenshot for Cloud Agent");
+    showToast("This issue has no screenshot for Cloud Agent", "triangle-alert");
     return;
   }
   if (issue) await sendToCloudAgent(issue);
@@ -680,10 +723,10 @@ function updateIntegrationsUI() {
 
   const chatBtn = document.getElementById("btnSendChat");
   const agentBtn = document.getElementById("btnSendAgent");
-  if (chatBtn) chatBtn.textContent = `💬 Send to ${target.label}`;
+  if (chatBtn) setButtonLabel(chatBtn, "message-circle", `Send to ${target.label}`);
   if (agentBtn) {
     agentBtn.classList.toggle("hidden", !target.supportsCloud);
-    if (target.supportsCloud) agentBtn.textContent = "☁️ Cursor Cloud Agent";
+    if (target.supportsCloud) setButtonLabel(agentBtn, "cloud", "Cursor Cloud Agent");
   }
 }
 
@@ -801,41 +844,41 @@ function setupIntegrations() {
     applySettingsToForm();
     updateIntegrationsUI();
     await updateJiraAssigneeVisibility();
-    showToast("💾 Settings saved");
+    showToast("Settings saved", "save");
   });
 
   document.getElementById("btnTestBridge").addEventListener("click", async () => {
     readSettingsFromForm();
     const base = settings.bridgeUrl.replace(/\/$/, "");
-    showToast("🔌 Testing bridge…");
+    showToast("Testing bridge…", "plug");
     try {
       const resp = await fetch(`${base}/health`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       if (!data.ok) throw new Error("Bridge unhealthy");
       if (data.version && data.version < 2) {
-        showToast("⚠️ Old bridge — restart: node local-bridge/server.js");
+        showToast("Old bridge — restart: node local-bridge/server.js", "triangle-alert");
         return;
       }
-      showToast("✅ Bridge connected (HTML mode)");
+      showToast("Bridge connected (HTML mode)", "circle-check");
     } catch {
-      showToast("❌ Bridge offline — run: node local-bridge/server.js");
+      showToast("Bridge offline — run: node local-bridge/server.js", "x");
     }
   });
 
   document.getElementById("btnVerifyKey").addEventListener("click", async () => {
     const key = document.getElementById("cursorApiKey").value.trim();
     if (!key) {
-      showToast("⚠️ Enter your API key first");
+      showToast("Enter your API key first", "triangle-alert");
       return;
     }
-    showToast("🔑 Verifying…");
+    showToast("Verifying…", "key");
     try {
       const resp = await chrome.runtime.sendMessage({ action: "verifyCursorKey", apiKey: key });
       if (resp.error) throw new Error(resp.error);
-      showToast("✅ API key valid");
+      showToast("API key valid", "circle-check");
     } catch (e) {
-      showToast("❌ " + e.message);
+      showToast(e.message, "x");
     }
   });
 
@@ -844,7 +887,7 @@ function setupIntegrations() {
     document.getElementById("cursorAgentId").value = "";
     document.getElementById("agentIdGroup").style.display = "none";
     await persistSettings();
-    showToast("🔄 New Cursor thread — next send creates a fresh agent");
+    showToast("New Cursor thread — next send creates a fresh agent", "refresh-cw");
   });
 
   document.getElementById("continueThread").addEventListener("change", () => {
@@ -855,18 +898,18 @@ function setupIntegrations() {
   document.getElementById("btnVerifyJira")?.addEventListener("click", async () => {
     readSettingsFromForm();
     if (!settings.jiraSiteUrl || !settings.jiraEmail || !settings.jiraApiToken) {
-      showToast("⚠️ Enter Jira site, email, and API token");
+      showToast("Enter Jira site, email, and API token", "triangle-alert");
       return;
     }
-    showToast("🔑 Verifying Jira…");
+    showToast("Verifying Jira…", "key");
     try {
       const resp = await sendBgMessage({ action: "verifyJira", settings });
       if (resp?.error) throw new Error(resp.error);
       await persistSettings();
-      showToast(`✅ Jira OK — ${resp?.me?.displayName || settings.jiraEmail}`);
+      showToast(`Jira OK — ${resp?.me?.displayName || settings.jiraEmail}`, "circle-check");
       await updateJiraAssigneeVisibility();
     } catch (e) {
-      showToast("❌ " + (e?.message || "Jira verify failed"));
+      showToast(e?.message || "Jira verify failed", "x");
     }
   });
 }
@@ -876,15 +919,15 @@ function setupElementPicker() {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id || tab.url?.startsWith("chrome://") || tab.url?.startsWith("chrome-extension://")) {
-        showToast("❌ Can't pick elements on this page");
+        showToast("Can't pick elements on this page", "x");
         return;
       }
       await hidePageWidgetForAction();
       await chrome.tabs.sendMessage(tab.id, { action: "startElementPicker" });
-      showToast("🎯 Click an element on the page");
+      showToast("Click an element on the page", "crosshair");
       if (!isEmbeddedPanel()) window.close();
     } catch {
-      showToast("❌ Reload the page and try again");
+      showToast("Reload the page and try again", "x");
     }
   });
 }
@@ -895,21 +938,47 @@ async function loadElementContext() {
   updateElementContextUI();
 }
 
+async function clearElementContext() {
+  currentElementContext = null;
+  await chrome.storage.local.remove("qaLastElement");
+  updateElementContextUI();
+  showToast("Element removed", "crosshair");
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id) {
+      await chrome.tabs.sendMessage(tab.id, { action: "clearElementContext" });
+    }
+  } catch {
+    /* optional — storage already cleared */
+  }
+}
+
+function setupElementStorageSync() {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !changes.qaLastElement) return;
+    currentElementContext = changes.qaLastElement.newValue ?? null;
+    updateElementContextUI();
+  });
+}
+
 function updateElementContextUI() {
   const btn = document.getElementById("btnPickElement");
   const info = document.getElementById("elementInfo");
   if (!currentElementContext) {
     btn.classList.remove("has-element");
-    btn.textContent = "🎯 Pick Element on Page (optional)";
+    setButtonLabel(btn, "crosshair", "Pick Element on Page (optional)");
     info.classList.remove("visible");
     info.innerHTML = "";
     return;
   }
   btn.classList.add("has-element");
-  btn.textContent = "🎯 Element selected — click to re-pick";
+  setButtonLabel(btn, "crosshair", "Element selected — click to re-pick");
   info.classList.add("visible");
   const ec = currentElementContext;
-  let html = `<strong>Element:</strong> <code>${escHtml(ec.selector)}</code>`;
+  let html =
+    `<button type="button" class="element-clear" id="btnClearElement">${iconHtml("x", { size: 10 })} remove</button>` +
+    `<strong>Element:</strong> <code>${escHtml(ec.selector)}</code>`;
   if (ec.reactComponents?.length) {
     html += `<br/><strong>Components:</strong> ${escHtml(ec.reactComponents.join(" → "))}`;
   }
@@ -917,6 +986,7 @@ function updateElementContextUI() {
     html += `<br/><strong>Source:</strong> <code>${escHtml(ec.sourceLocation)}</code>`;
   }
   info.innerHTML = html;
+  document.getElementById("btnClearElement")?.addEventListener("click", clearElementContext);
 }
 
 // ── Jira integration ──────────────────────────────────
@@ -999,7 +1069,7 @@ async function updateJiraAssigneeVisibility() {
 async function openJiraCreatePanel() {
   const jiraSettings = await getJiraSettings();
   if (!jiraSettings.jiraSiteUrl || !jiraSettings.jiraEmail || !jiraSettings.jiraApiToken) {
-    showToast("⚠️ Configure Jira in 🤖 AI / Editor tab");
+    showToast("Configure Jira in AI / Editor tab", "triangle-alert");
     document.querySelector('[data-tab="integrations"]')?.click();
     return;
   }
@@ -1049,7 +1119,7 @@ async function openJiraCreatePanel() {
 async function submitJiraCreate() {
   const comment = document.getElementById("commentInput")?.value.trim();
   if (!comment) {
-    showToast("⚠️ Please add a comment first");
+    showToast("Please add a comment first", "triangle-alert");
     return;
   }
 
@@ -1062,11 +1132,11 @@ async function submitJiraCreate() {
   if (!issueTypeName) issueTypeName = jiraSettings.jiraDefaultIssueType || "Bug";
 
   if (!projectKey) {
-    showToast("⚠️ Enter a Jira project key");
+    showToast("Enter a Jira project key", "triangle-alert");
     return;
   }
   if (!summary) {
-    showToast("⚠️ Enter an issue summary");
+    showToast("Enter an issue summary", "triangle-alert");
     return;
   }
 
@@ -1076,7 +1146,7 @@ async function submitJiraCreate() {
   const quickBtn = document.getElementById("btnCreateJiraQuick");
   if (btn) btn.disabled = true;
   if (quickBtn) quickBtn.disabled = true;
-  showToast("➕ Creating Jira issue…");
+  showToast("Creating Jira issue…", "plus");
 
   try {
     const issue = buildIssueFromForm({ includeScreenshot: true });
@@ -1106,9 +1176,9 @@ async function submitJiraCreate() {
       url: resp.issueUrl
     });
     hideJiraCreatePanel();
-    showToast(`✅ Created ${resp.issueKey}`);
+    showToast(`Created ${resp.issueKey}`, "circle-check");
   } catch (e) {
-    showToast("❌ " + (e?.message || "Create failed"));
+    showToast(e?.message || "Create failed", "x");
   } finally {
     if (btn) btn.disabled = false;
     if (quickBtn) quickBtn.disabled = false;
@@ -1125,7 +1195,7 @@ function setupJira() {
   btn?.addEventListener("click", async () => {
     const jiraSettings = await getJiraSettings();
     if (!jiraSettings.jiraSiteUrl || !jiraSettings.jiraEmail || !jiraSettings.jiraApiToken) {
-      showToast("⚠️ Configure Jira in 🤖 AI / Editor tab");
+      showToast("Configure Jira in AI / Editor tab", "triangle-alert");
       document.querySelector('[data-tab="integrations"]')?.click();
       return;
     }
@@ -1276,7 +1346,7 @@ async function selectJiraIssue(issue) {
     searchInput.value = "";
   }
   results?.classList.remove("visible");
-  showToast(`✅ Linked ${issue.key}`);
+  showToast(`Linked ${issue.key}`, "circle-check");
 }
 
 async function clearLinkedJiraIssue() {
@@ -1298,21 +1368,21 @@ function updateJiraContextUI() {
 
   if (!currentJiraContext) {
     btn?.classList.remove("has-jira");
-    if (btn) btn.textContent = "🔗 Link Issue";
+    if (btn) setButtonLabel(btn, "link", "Link Issue");
     linked?.classList.remove("visible");
     if (linked) linked.innerHTML = "";
     return;
   }
 
   btn?.classList.add("has-jira");
-  if (btn) btn.textContent = "🔗 Jira linked — click to change";
+  if (btn) setButtonLabel(btn, "link", "Jira linked — click to change");
   if (searchInput) searchInput.style.display = "none";
 
   const j = currentJiraContext;
   linked?.classList.add("visible");
   if (linked) {
     linked.innerHTML =
-      `<button type="button" class="jira-clear" id="btnClearJira">✕ clear</button>` +
+      `<button type="button" class="jira-clear" id="btnClearJira">${iconHtml("x", { size: 10 })} clear</button>` +
       `<strong>${escHtml(j.key)}</strong>: ${escHtml(j.summary || "")}` +
       (j.status ? `<br/><span style="color:var(--muted)">${escHtml(j.status)}</span>` : "") +
       (j.url ? `<br/><a href="${escHtml(j.url)}" target="_blank" style="color:#4c9aff;font-size:10px">Open in Jira</a>` : "");
@@ -1323,7 +1393,7 @@ function updateJiraContextUI() {
 async function sendCurrentToJira() {
   const comment = document.getElementById("commentInput").value.trim();
   if (!comment) {
-    showToast("⚠️ Please add a comment first");
+    showToast("Please add a comment first", "triangle-alert");
     return;
   }
   await pushToJira(buildIssueFromForm({ includeScreenshot: true }));
@@ -1332,13 +1402,13 @@ async function sendCurrentToJira() {
 async function sendCurrentToNewJira() {
   const comment = document.getElementById("commentInput").value.trim();
   if (!comment) {
-    showToast("⚠️ Please add a comment first");
+    showToast("Please add a comment first", "triangle-alert");
     return;
   }
 
   const jiraSettings = await getJiraSettings();
   if (!jiraSettings.jiraSiteUrl || !jiraSettings.jiraEmail || !jiraSettings.jiraApiToken) {
-    showToast("⚠️ Configure Jira in 🤖 AI / Editor tab");
+    showToast("Configure Jira in AI / Editor tab", "triangle-alert");
     document.querySelector('[data-tab="integrations"]')?.click();
     return;
   }
@@ -1363,20 +1433,20 @@ async function pushToJira(issue) {
   const jiraSettings = await getJiraSettings();
 
   if (!jiraSettings.jiraSiteUrl || !jiraSettings.jiraEmail || !jiraSettings.jiraApiToken) {
-    showToast("⚠️ Configure Jira in 🤖 AI / Editor tab");
+    showToast("Configure Jira in AI / Editor tab", "triangle-alert");
     document.querySelector('[data-tab="integrations"]')?.click();
     return;
   }
 
   const jiraKey = issue.jiraContext?.key || currentJiraContext?.key;
   if (!jiraKey) {
-    showToast("⚠️ Link a Jira issue first");
+    showToast("Link a Jira issue first", "triangle-alert");
     return;
   }
 
   const btn = document.getElementById("btnPushJira");
   if (btn) btn.disabled = true;
-  showToast("🔗 Pushing to Jira…");
+  showToast("Pushing to Jira…", "link");
 
   try {
     const pageCapture = await capturePageHtmlForIssue();
@@ -1399,9 +1469,9 @@ async function pushToJira(issue) {
 
     if (resp?.error) throw new Error(resp.error);
 
-    showToast(`✅ Posted to ${jiraKey}`);
+    showToast(`Posted to ${jiraKey}`, "circle-check");
   } catch (e) {
-    showToast("❌ " + e.message);
+    showToast(e.message, "x");
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -1449,7 +1519,7 @@ const DEEPLINK_MAX = 7800;
 async function capturePageHtmlForIssue() {
   const resp = await chrome.runtime.sendMessage({ action: "capturePageHtml" });
   if (resp?.error) {
-    showToast("⚠️ " + resp.error);
+    showToast(resp.error, "triangle-alert");
     return null;
   }
   return resp;
@@ -1462,7 +1532,7 @@ async function sendToLocalEditor(issue) {
     : { label: "Editor" };
 
   if (!settings.projectPath) {
-    showToast("⚠️ Set project path in 🤖 AI / Editor tab");
+    showToast("Set project path in AI / Editor tab", "triangle-alert");
     document.querySelector('[data-tab="integrations"]')?.click();
     return;
   }
@@ -1470,7 +1540,7 @@ async function sendToLocalEditor(issue) {
   const btn = document.getElementById("btnSendChat");
   if (btn) btn.disabled = true;
 
-  showToast("📄 Capturing page HTML…");
+  showToast("Capturing page HTML…", "file-text");
 
   const pageCapture = await capturePageHtmlForIssue();
   const htmlContent = buildIssueHtmlFile(issue, pageCapture?.html, pageCapture?.url);
@@ -1479,12 +1549,12 @@ async function sendToLocalEditor(issue) {
   const screenshotBase64 = getAnnotatedScreenshot()?.split(",")[1] || "";
 
   if (!prompt?.trim()) {
-    showToast("⚠️ Could not build bug report prompt");
+    showToast("Could not build bug report prompt", "triangle-alert");
     if (btn) btn.disabled = false;
     return;
   }
   if (!htmlContent?.trim()) {
-    showToast("⚠️ Could not capture page HTML — reload the page and try again");
+    showToast("Could not capture page HTML — reload the page and try again", "triangle-alert");
     if (btn) btn.disabled = false;
     return;
   }
@@ -1523,7 +1593,7 @@ async function sendToLocalEditor(issue) {
         throw new Error(msg);
       }
 
-      showToast(`✅ Opening ${data.editorLabel || target.label}…`);
+      showToast(`Opening ${data.editorLabel || target.label}…`, "circle-check");
       return;
     } catch (bridgeErr) {
       let fallbackPrompt = prompt;
@@ -1531,7 +1601,7 @@ async function sendToLocalEditor(issue) {
         fallbackPrompt = fallbackPrompt.slice(0, DEEPLINK_MAX - 20) + "\n\n…[truncated]";
       }
       fallbackPrompt +=
-        "\n\n📎 Start the bridge (`node local-bridge/server.js`) to auto-open your project and save `.qa-snap/latest.html`.";
+        "\n\nNote: Start the bridge (`node local-bridge/server.js`) to auto-open your project and save `.qa-snap/latest.html`.";
 
       const deeplink = typeof buildTargetDeeplink === "function"
         ? buildTargetDeeplink(settings.editorTarget, fallbackPrompt, settings.projectPath, custom)
@@ -1539,9 +1609,9 @@ async function sendToLocalEditor(issue) {
 
       if (deeplink) {
         chrome.tabs.create({ url: deeplink });
-        showToast(`💬 ${target.label} deeplink opened — start bridge for full workflow`);
+        showToast(`${target.label} deeplink opened — start bridge for full workflow`, "message-circle");
       } else {
-        showToast("❌ " + (bridgeErr.message || "Bridge offline"));
+        showToast(bridgeErr.message || "Bridge offline", "x");
       }
       console.warn("Bridge failed:", bridgeErr.message);
     }
@@ -1558,14 +1628,14 @@ async function sendToCursorChat(issue) {
 async function sendToCloudAgent(issue) {
   readSettingsFromForm();
   if (!settings.cursorApiKey) {
-    showToast("⚠️ Add Cursor API key in 🤖 AI / Editor tab");
+    showToast("Add Cursor API key in AI / Editor tab", "triangle-alert");
     document.querySelector('[data-tab="integrations"]').click();
     return;
   }
 
   const btn = document.getElementById("btnSendAgent");
   if (btn) btn.disabled = true;
-  showToast("☁️ Sending to Cloud Agent…");
+  showToast("Sending to Cloud Agent…", "cloud");
 
   try {
     const imagePayload = await prepareImageForApi(issue.screenshot);
@@ -1584,12 +1654,12 @@ async function sendToCloudAgent(issue) {
       await persistSettings();
     }
 
-    showToast("✅ Cloud Agent started!");
+    showToast("Cloud Agent started!", "circle-check");
     if (resp.agentUrl) {
       chrome.tabs.create({ url: resp.agentUrl });
     }
   } catch (e) {
-    showToast("❌ " + e.message);
+    showToast(e.message, "x");
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -1606,7 +1676,7 @@ function setupExport() {
       await saveIssues();
       renderIssuesList();
       updateStats();
-      showToast("🗑 All issues cleared");
+      showToast("All issues cleared", "trash-2");
     }
   });
 }
@@ -1621,7 +1691,7 @@ function updateStats() {
 // ── ZIP export (no external library needed — manual zip) ──
 async function exportZip() {
   if (issues.length === 0) { showToast("No issues to export"); return; }
-  showToast("📦 Building ZIP…");
+  showToast("Building ZIP…", "package");
 
   // Build HTML report inline
   const reportHtml = buildHtmlReport();
@@ -1646,7 +1716,7 @@ async function exportZip() {
 
   const blob = zip.generate();
   downloadBlob(blob, `qa-report-${dateStamp()}.zip`);
-  showToast("✅ ZIP downloaded!");
+  showToast("ZIP downloaded!", "circle-check");
 }
 
 function exportHtml() {
@@ -1654,7 +1724,7 @@ function exportHtml() {
   const html = buildHtmlReport();
   const blob = new Blob([html], { type: "text/html" });
   downloadBlob(blob, `qa-report-${dateStamp()}.html`);
-  showToast("🌐 HTML Report downloaded!");
+  showToast("HTML Report downloaded!", "globe");
 }
 
 function exportJson() {
@@ -1664,7 +1734,7 @@ function exportJson() {
   );
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   downloadBlob(blob, `qa-report-${dateStamp()}.json`);
-  showToast("{ } JSON downloaded!");
+  showToast("JSON downloaded!", "braces");
 }
 
 function buildHtmlReport() {
@@ -1697,7 +1767,7 @@ function buildHtmlReport() {
 </style>
 </head>
 <body>
-<h1>🐛 QA Snap Report</h1>
+<h1 style="display:flex;align-items:center;gap:10px">${iconHtml("bug",{size:28})} QA Snap Report</h1>
 <div class="sub">Generated ${new Date().toLocaleString()} · ${issues.length} issues</div>
 <div class="stats">
   <div class="stat"><div class="stat-n">${issues.length}</div><div class="stat-l">Total</div></div>
@@ -1708,14 +1778,14 @@ function buildHtmlReport() {
 </div>
 <div class="grid">
 ${issues.map(i=>`<div class="card">
-  ${i.screenshot ? `<img src="${i.screenshot}" alt="Issue ${i.num}"/>` : `<div style="padding:32px;text-align:center;color:#7b80a0">📄 HTML-only issue</div>`}
+  ${i.screenshot ? `<img src="${i.screenshot}" alt="Issue ${i.num}"/>` : `<div style="padding:32px;text-align:center;color:#7b80a0;display:flex;align-items:center;justify-content:center;gap:6px">${iconHtml("file-text",{size:16})} HTML-only issue</div>`}
   <div class="card-body">
     <div class="meta">
       <span class="num">#${i.num}</span>
       <span class="sev" style="background:${sevColor[i.severity]}22;color:${sevColor[i.severity]};border:1px solid ${sevColor[i.severity]}44">${i.severity}</span>
     </div>
     <div class="comment">${escHtml(i.comment)}</div>
-    <div class="url">🔗 ${escHtml(i.url)}</div>
+    <div class="url" style="display:flex;align-items:flex-start;gap:6px">${iconHtml("link",{size:12})}<span>${escHtml(i.url)}</span></div>
     <div class="ts">${new Date(i.timestamp).toLocaleString()}</div>
   </div>
 </div>`).join("\n")}
@@ -1841,9 +1911,13 @@ function downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 
-function showToast(msg) {
+function showToast(msg, iconName) {
   const t = document.getElementById("toast");
-  t.textContent = msg;
+  if (iconName) {
+    t.innerHTML = `<span class="toast-inner">${iconHtml(iconName, { size: 14 })}<span>${escHtml(msg)}</span></span>`;
+  } else {
+    t.textContent = msg;
+  }
   t.classList.add("show");
   setTimeout(() => t.classList.remove("show"), 2200);
 }

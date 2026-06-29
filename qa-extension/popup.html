@@ -43,26 +43,38 @@
 
     html.embed-mode,
     html.embed-mode body {
-      width: 100%;
-      height: 100%;
-      min-height: 100%;
-      max-height: none;
+      width: 100% !important;
+      max-width: 100% !important;
+      max-height: none !important;
+      margin: 0;
+      padding: 0;
       overflow: hidden;
     }
 
-    html.embed-mode body {
-      max-width: 100%;
-      display: flex;
-      flex-direction: column;
+    html.embed-mode {
+      height: 100%;
     }
 
-    html.embed-mode .header,
+    html.embed-mode body {
+      position: fixed;
+      inset: 0;
+      height: auto !important;
+      min-height: 0 !important;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+    }
+
+    html.embed-mode .header {
+      display: none;
+    }
+
     html.embed-mode .tabs {
       flex-shrink: 0;
     }
 
     html.embed-mode .panel {
-      flex: 1;
+      flex: 1 1 auto;
       min-height: 0;
       max-height: none;
       overflow: hidden;
@@ -71,29 +83,31 @@
     html.embed-mode .panel.active {
       display: flex;
       flex-direction: column;
+      height: 100%;
     }
 
     html.embed-mode .capture-area,
     html.embed-mode .issues-area,
     html.embed-mode .export-area,
     html.embed-mode .cursor-area {
-      flex: 1;
+      flex: 1 1 auto;
       min-height: 0;
       max-height: none;
+      overflow-x: hidden;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
     }
 
     html.embed-mode .editor-wrap.visible {
-      flex: 1;
+      flex: 1 1 auto;
       min-height: 0;
       display: flex;
       flex-direction: column;
     }
 
     html.embed-mode .editor-wrap.visible .canvas-container {
-      flex: 1;
-      min-height: 160px;
+      flex: 1 1 auto;
+      min-height: 140px;
       max-height: none;
     }
 
@@ -162,6 +176,26 @@
     .tab-btn:hover { color: var(--text); }
     .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 
+    .lucide-icon {
+      display: inline-block;
+      vertical-align: -0.15em;
+      flex-shrink: 0;
+    }
+    .lucide-icon.muted { opacity: 0.4; }
+    .tab-btn .lucide-icon,
+    .btn-pick .lucide-icon,
+    .btn-capture .lucide-icon,
+    .btn-save .lucide-icon,
+    .btn-cursor .lucide-icon,
+    .btn-settings .lucide-icon,
+    .btn-clear-all .lucide-icon,
+    .sev-btn .lucide-icon { margin-right: 2px; }
+    .toast-inner {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
     /* ── Panels ──────────────────────────────────────── */
     .panel { display: none; flex-direction: column; flex: 1; overflow: hidden; }
     .panel.active { display: flex; }
@@ -172,8 +206,22 @@
       flex-direction: column;
       gap: 12px;
       padding: 14px;
-      flex: 1;
+      flex: 1 1 auto;
+      min-height: 0;
       overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    html.embed-mode #panel-capture {
+      flex: 1 1 0%;
+      min-height: 0;
+      height: 100%;
+    }
+
+    html.embed-mode #panel-capture .capture-area {
+      flex: 1 1 0%;
+      min-height: 0;
+      height: 100%;
     }
 
     .url-bar {
@@ -250,7 +298,9 @@
       justify-content: center;
       font-size: 14px;
       transition: all 0.15s;
+      padding: 0;
     }
+    .tool-btn .lucide-icon { display: block; }
     .tool-btn:hover { border-color: var(--accent); color: var(--accent); }
     .tool-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
@@ -458,7 +508,8 @@
     }
     .jira-linked.visible { display: block; }
     .jira-linked strong { color: #4c9aff; }
-    .jira-clear {
+    .jira-clear,
+    .element-clear {
       float: right;
       background: none;
       border: none;
@@ -466,8 +517,12 @@
       cursor: pointer;
       font-size: 11px;
       padding: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
     }
-    .jira-clear:hover { color: var(--danger); }
+    .jira-clear:hover,
+    .element-clear:hover { color: var(--danger); }
 
     .btn-jira {
       background: linear-gradient(135deg, #0052cc, #2684ff);
@@ -613,6 +668,9 @@
       font-weight: 600;
       cursor: pointer;
       transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
     }
     .btn-cursor-sm:hover { background: #6c63ff30; border-color: #6c63ff; }
     .btn-cursor-sm:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -623,7 +681,8 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
-      flex: 1;
+      flex: 1 1 auto;
+      min-height: 0;
       overflow-y: auto;
     }
     .field-label {
@@ -722,7 +781,8 @@
 
     /* ── Issues panel ────────────────────────────────── */
     .issues-area {
-      flex: 1;
+      flex: 1 1 auto;
+      min-height: 0;
       overflow-y: auto;
       padding: 10px;
       display: flex;
@@ -740,7 +800,7 @@
       color: var(--muted);
       text-align: center;
     }
-    .empty-icon { font-size: 36px; opacity: 0.4; }
+    .empty-icon { display: flex; justify-content: center; opacity: 0.4; }
 
     .issue-card {
       background: var(--surface);
@@ -787,11 +847,19 @@
       margin-bottom: 6px;
     }
     .issue-url {
+      display: flex;
+      align-items: flex-start;
+      gap: 5px;
       font-size: 10px;
       color: var(--muted);
       overflow: hidden;
+    }
+    .issue-url .lucide-icon { margin-top: 1px; flex-shrink: 0; }
+    .issue-url-text {
+      overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      min-width: 0;
     }
     .issue-actions { display: flex; gap: 6px; margin-top: 8px; }
     .btn-del {
@@ -801,6 +869,9 @@
       background: none;
       color: var(--danger);
       font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
       cursor: pointer;
       transition: all 0.15s;
     }
@@ -812,7 +883,8 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
-      flex: 1;
+      flex: 1 1 auto;
+      min-height: 0;
       overflow-y: auto;
     }
 
@@ -854,7 +926,7 @@
       transition: all 0.18s;
     }
     .btn-export:hover { border-color: var(--accent); background: #6c63ff14; }
-    .btn-export .icon { font-size: 18px; }
+    .btn-export .icon { display: flex; align-items: center; flex-shrink: 0; }
     .btn-export .desc { font-size: 10px; color: var(--muted); margin-top: 2px; }
 
     .btn-clear-all {
@@ -906,10 +978,10 @@
 
 <!-- TABS -->
 <div class="tabs">
-  <button class="tab-btn active" data-tab="capture">📸 Capture</button>
-  <button class="tab-btn" data-tab="issues">🐛 Issues</button>
-  <button class="tab-btn" data-tab="export">📦 Export</button>
-  <button class="tab-btn" data-tab="integrations">🤖 AI / Editor</button>
+  <button class="tab-btn active" data-tab="capture"><span data-icon="camera" data-icon-size="14"></span> Capture</button>
+  <button class="tab-btn" data-tab="issues"><span data-icon="bug" data-icon-size="14"></span> Issues</button>
+  <button class="tab-btn" data-tab="export"><span data-icon="package" data-icon-size="14"></span> Export</button>
+  <button class="tab-btn" data-tab="integrations"><span data-icon="bot" data-icon-size="14"></span> AI / Editor</button>
 </div>
 
 <!-- PANEL: CAPTURE -->
@@ -922,13 +994,13 @@
     </div>
 
     <!-- Pick element -->
-    <button class="btn-pick" id="btnPickElement">🎯 Pick Element on Page (optional)</button>
+    <button class="btn-pick" id="btnPickElement"><span data-icon="crosshair" data-icon-size="14"></span> Pick Element on Page (optional)</button>
     <div class="element-info" id="elementInfo"></div>
 
     <div class="jira-picker-wrap" id="jiraPickerWrap">
       <div class="jira-actions-row">
-        <button class="btn-pick" id="btnLinkJira" type="button">🔗 Link Issue</button>
-        <button class="btn-pick" id="btnCreateJira" type="button">➕ New Issue</button>
+        <button class="btn-pick" id="btnLinkJira" type="button"><span data-icon="link" data-icon-size="14"></span> Link Issue</button>
+        <button class="btn-pick" id="btnCreateJira" type="button"><span data-icon="plus" data-icon-size="14"></span> New Issue</button>
       </div>
       <input class="jira-search-input" id="jiraSearchInput" type="text" placeholder="Search Jira… e.g. PROJ-123 or login bug" style="display:none"/>
       <div class="jira-results" id="jiraResults"></div>
@@ -958,27 +1030,27 @@
     <div class="comment-row">
       <textarea class="comment-input" id="commentInput" placeholder="Describe the issue — what happened, what was expected…" rows="3"></textarea>
       <div class="severity-sel">
-        <button class="sev-btn active" data-sev="critical">🔴 Critical</button>
-        <button class="sev-btn" data-sev="major">🟠 Major</button>
-        <button class="sev-btn" data-sev="minor">🟡 Minor</button>
-        <button class="sev-btn" data-sev="info">🔵 Info</button>
+        <button class="sev-btn active" data-sev="critical"><span data-icon="circle" data-icon-size="10" data-icon-fill="#ff4f6a" data-icon-stroke="none"></span> Critical</button>
+        <button class="sev-btn" data-sev="major"><span data-icon="circle" data-icon-size="10" data-icon-fill="#ff9444" data-icon-stroke="none"></span> Major</button>
+        <button class="sev-btn" data-sev="minor"><span data-icon="circle" data-icon-size="10" data-icon-fill="#ffe044" data-icon-stroke="none"></span> Minor</button>
+        <button class="sev-btn" data-sev="info"><span data-icon="circle" data-icon-size="10" data-icon-fill="#6c63ff" data-icon-stroke="none"></span> Info</button>
       </div>
     </div>
 
     <div class="btn-row">
-      <button class="btn-save" id="btnSave">✅ Save Issue</button>
+      <button class="btn-save" id="btnSave"><span data-icon="circle-check" data-icon-size="14"></span> Save Issue</button>
     </div>
     <div class="btn-row">
-      <button class="btn-cursor btn-chat" id="btnSendChat">💬 Send to Editor</button>
-      <button class="btn-cursor btn-agent hidden" id="btnSendAgent">☁️ Cloud Agent</button>
+      <button class="btn-cursor btn-chat" id="btnSendChat"><span data-icon="message-circle" data-icon-size="14"></span> Send to Editor</button>
+      <button class="btn-cursor btn-agent hidden" id="btnSendAgent"><span data-icon="cloud" data-icon-size="14"></span> Cloud Agent</button>
     </div>
     <div class="btn-row">
-      <button class="btn-cursor btn-jira" id="btnPushJira">🔗 Push to Jira</button>
-      <button class="btn-cursor btn-jira-create" id="btnCreateJiraQuick">➕ Create Jira Issue</button>
+      <button class="btn-cursor btn-jira" id="btnPushJira"><span data-icon="link" data-icon-size="14"></span> Push to Jira</button>
+      <button class="btn-cursor btn-jira-create" id="btnCreateJiraQuick"><span data-icon="plus" data-icon-size="14"></span> Create Jira Issue</button>
     </div>
 
     <button class="btn-capture" id="btnCapture">
-      <span>📷</span> Capture Screenshot (optional)
+      <span data-icon="camera" data-icon-size="16"></span> Capture Screenshot (optional)
     </button>
 
     <!-- Annotator (shown after optional screenshot capture) -->
@@ -987,12 +1059,12 @@
       <!-- Toolbar -->
       <div class="toolbar">
         <div class="tool-group">
-          <button class="tool-btn active" id="toolPen" title="Pen">✏️</button>
-          <button class="tool-btn" id="toolArrow" title="Arrow">↗</button>
-          <button class="tool-btn" id="toolRect" title="Rectangle">▭</button>
-          <button class="tool-btn" id="toolCircle" title="Circle">○</button>
-          <button class="tool-btn" id="toolText" title="Text">T</button>
-          <button class="tool-btn" id="toolEraser" title="Eraser">⌫</button>
+          <button class="tool-btn active" id="toolPen" title="Pen"><span data-icon="pencil" data-icon-size="16"></span></button>
+          <button class="tool-btn" id="toolArrow" title="Arrow"><span data-icon="arrow-up-right" data-icon-size="16"></span></button>
+          <button class="tool-btn" id="toolRect" title="Rectangle"><span data-icon="square" data-icon-size="16"></span></button>
+          <button class="tool-btn" id="toolCircle" title="Circle"><span data-icon="circle" data-icon-size="16"></span></button>
+          <button class="tool-btn" id="toolText" title="Text"><span data-icon="type" data-icon-size="16"></span></button>
+          <button class="tool-btn" id="toolEraser" title="Eraser"><span data-icon="eraser" data-icon-size="16"></span></button>
         </div>
         <div class="tool-sep"></div>
         <div class="tool-group">
@@ -1008,8 +1080,8 @@
           <div class="color-swatch" style="background:#000" data-color="#000000"></div>
         </div>
         <div class="tool-sep"></div>
-        <button class="tool-btn" id="btnUndo" title="Undo">↩</button>
-        <button class="tool-btn" id="btnClear" title="Clear drawings">🗑</button>
+        <button class="tool-btn" id="btnUndo" title="Undo"><span data-icon="undo-2" data-icon-size="16"></span></button>
+        <button class="tool-btn" id="btnClear" title="Clear drawings"><span data-icon="trash-2" data-icon-size="16"></span></button>
       </div>
 
       <!-- Canvas -->
@@ -1024,7 +1096,7 @@
 <div class="panel" id="panel-issues">
   <div class="issues-area" id="issuesList">
     <div class="empty-state">
-      <div class="empty-icon">🐛</div>
+      <div class="empty-icon"><span data-icon="bug" data-icon-size="36" data-icon-class="muted"></span></div>
       <div>No issues captured yet.<br/>Go to Capture to get started.</div>
     </div>
   </div>
@@ -1055,21 +1127,21 @@
     <div class="export-label">Download As</div>
     <div class="export-options">
       <button class="btn-export" id="btnZip">
-        <span class="icon">📦</span>
+        <span class="icon"><span data-icon="package" data-icon-size="20"></span></span>
         <div>
           <div>ZIP Archive</div>
           <div class="desc">All screenshots + report.html + urls.txt in one zip</div>
         </div>
       </button>
       <button class="btn-export" id="btnHtml">
-        <span class="icon">🌐</span>
+        <span class="icon"><span data-icon="globe" data-icon-size="20"></span></span>
         <div>
           <div>HTML Report</div>
           <div class="desc">Standalone visual report with all screenshots inline</div>
         </div>
       </button>
       <button class="btn-export" id="btnJson">
-        <span class="icon">{ }</span>
+        <span class="icon"><span data-icon="braces" data-icon-size="20"></span></span>
         <div>
           <div>JSON Data</div>
           <div class="desc">Raw issue data for developers or test management tools</div>
@@ -1077,7 +1149,7 @@
       </button>
     </div>
 
-    <button class="btn-clear-all" id="btnClearAll">🗑 Clear All Issues</button>
+    <button class="btn-clear-all" id="btnClearAll"><span data-icon="trash-2" data-icon-size="14"></span> Clear All Issues</button>
   </div>
 </div>
 
@@ -1153,8 +1225,8 @@
     </div>
 
     <div class="field-row">
-      <button class="btn-settings" id="btnTestBridge" style="flex:1">🔌 Test Bridge</button>
-      <button class="btn-settings" id="btnSaveSettings" style="flex:1">💾 Save Settings</button>
+      <button class="btn-settings" id="btnTestBridge" style="flex:1"><span data-icon="plug" data-icon-size="14"></span> Test Bridge</button>
+      <button class="btn-settings" id="btnSaveSettings" style="flex:1"><span data-icon="save" data-icon-size="14"></span> Save Settings</button>
     </div>
 
     <div class="section-title">Jira Cloud (optional)</div>
@@ -1188,7 +1260,7 @@
       <div class="field-hint">Used when creating issues (Bug, Task, Story, …)</div>
     </div>
 
-    <button class="btn-settings" id="btnVerifyJira">🔑 Verify Jira</button>
+    <button class="btn-settings" id="btnVerifyJira"><span data-icon="key" data-icon-size="14"></span> Verify Jira</button>
 
     <div id="cloudAgentSection">
       <div class="section-title">Cursor Cloud Agent (optional)</div>
@@ -1199,7 +1271,7 @@
         <div class="field-hint">Get your key from <a href="https://cursor.com/dashboard/integrations" target="_blank" style="color:var(--accent)">Cursor Dashboard → Integrations</a></div>
       </div>
 
-      <button class="btn-settings" id="btnVerifyKey">🔑 Verify API Key</button>
+      <button class="btn-settings" id="btnVerifyKey"><span data-icon="key" data-icon-size="14"></span> Verify API Key</button>
 
       <div class="field-group">
         <div class="field-label">GitHub Repository (optional)</div>
@@ -1229,13 +1301,14 @@
         <div class="field-hint">Follow-up issues go to this agent when "Continue thread" is checked</div>
       </div>
 
-      <button class="btn-settings" id="btnNewThread" style="color:var(--muted)">🔄 New Cloud Agent Thread</button>
+      <button class="btn-settings" id="btnNewThread" style="color:var(--muted)"><span data-icon="refresh-cw" data-icon-size="14"></span> New Cloud Agent Thread</button>
     </div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
+<script src="lucide-icons.js"></script>
 <script src="editor-targets.js"></script>
 <script src="issue-prompt.js"></script>
 <script src="popup.js"></script>

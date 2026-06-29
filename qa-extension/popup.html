@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>QA Snap</title>
+  <style>
+    /* ── Reset & base ───────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --surface2:  #22263a;
+      --border:    #2e3248;
+      --accent:    #6c63ff;
+      --accent2:   #ff6584;
+      --green:     #00e5a0;
+      --text:      #e8eaf0;
+      --muted:     #7b80a0;
+      --danger:    #ff4f6a;
+      --radius:    10px;
+      --font:      'Segoe UI', system-ui, sans-serif;
+    }
+
+    body {
+      width: 480px;
+      min-height: 200px;
+      max-height: 680px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ─────────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: -0.3px;
+    }
+    .logo-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .badge {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 3px 9px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .badge span { color: var(--accent); font-weight: 700; }
+
+    /* ── Tab bar ─────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 9px;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.18s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── Panels ──────────────────────────────────────── */
+    .panel { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+    .panel.active { display: flex; }
+
+    /* ── Capture panel ───────────────────────────────── */
+    .capture-area {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 14px;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .url-bar {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--muted);
+      overflow: hidden;
+    }
+    .url-bar .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+    .url-bar .url-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+
+    .btn-capture {
+      width: 100%;
+      padding: 13px;
+      border: none;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: opacity 0.18s, transform 0.1s;
+      letter-spacing: 0.2px;
+    }
+    .btn-capture:hover { opacity: 0.9; }
+    .btn-capture:active { transform: scale(0.98); }
+    .btn-capture:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Canvas editor */
+    .editor-wrap {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .editor-wrap.visible { display: flex; }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      flex-wrap: wrap;
+    }
+    .tool-group {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .tool-sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
+
+    .tool-btn {
+      width: 30px;
+      height: 30px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      transition: all 0.15s;
+    }
+    .tool-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .tool-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    .size-slider {
+      -webkit-appearance: none;
+      width: 60px;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border);
+      outline: none;
+    }
+    .size-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+    }
+
+    .color-swatch {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: transform 0.12s;
+      flex-shrink: 0;
+    }
+    .color-swatch:hover { transform: scale(1.15); }
+    .color-swatch.active { border-color: #fff; }
+
+    .canvas-container {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      position: relative;
+      background: #000;
+      max-height: 240px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #drawCanvas {
+      display: block;
+      max-width: 100%;
+      max-height: 240px;
+      cursor: crosshair;
+    }
+
+    .comment-row {
+      display: flex;
+      gap: 8px;
+    }
+    .comment-input {
+      flex: 1;
+      padding: 9px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 12px;
+      outline: none;
+      resize: none;
+      font-family: var(--font);
+      line-height: 1.5;
+      min-height: 60px;
+      transition: border-color 0.15s;
+    }
+    .comment-input:focus { border-color: var(--accent); }
+    .comment-input::placeholder { color: var(--muted); }
+
+    .severity-sel {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .sev-btn {
+      padding: 5px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .sev-btn:hover { border-color: var(--accent); }
+    .sev-btn.active[data-sev="critical"] { background: #ff4f6a22; border-color: #ff4f6a; color: #ff4f6a; }
+    .sev-btn.active[data-sev="major"]    { background: #ff944422; border-color: #ff9444; color: #ff9444; }
+    .sev-btn.active[data-sev="minor"]    { background: #ffe04422; border-color: #ffe044; color: #ffe044; }
+    .sev-btn.active[data-sev="info"]     { background: #6c63ff22; border-color: #6c63ff; color: #6c63ff; }
+
+    .btn-save {
+      width: 100%;
+      padding: 11px;
+      border: none;
+      border-radius: var(--radius);
+      background: var(--green);
+      color: #0f1117;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      transition: opacity 0.18s;
+    }
+    .btn-save:hover { opacity: 0.88; }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+    }
+    .btn-row .btn-save,
+    .btn-row .btn-cursor,
+    .btn-row .btn-agent {
+      flex: 1;
+    }
+
+    .btn-chat {
+      background: linear-gradient(135deg, #1a5c45, #00e5a0);
+      color: #0f1117;
+    }
+
+    .btn-agent {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-agent.hidden { display: none !important; }
+
+    .btn-pick {
+      width: 100%;
+      padding: 10px;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      background: var(--surface2);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-pick:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-pick.has-element { border-style: solid; border-color: var(--green); color: var(--green); }
+
+    .element-info {
+      display: none;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .element-info.visible { display: block; }
+    .element-info strong { color: var(--text); }
+
+    .btn-cursor {
+      padding: 11px;
+      border: none;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, #2d2a5e, #6c63ff);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      transition: opacity 0.18s;
+    }
+    .btn-cursor:hover { opacity: 0.9; }
+    .btn-cursor:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-cursor-sm {
+      padding: 4px 10px;
+      border-radius: 5px;
+      border: 1px solid #6c63ff44;
+      background: #6c63ff18;
+      color: #a09fff;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-cursor-sm:hover { background: #6c63ff30; border-color: #6c63ff; }
+    .btn-cursor-sm:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Cursor settings panel ───────────────────────── */
+    .cursor-area {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+      overflow-y: auto;
+    }
+    .field-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .field-input {
+      width: 100%;
+      padding: 9px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 12px;
+      outline: none;
+      font-family: var(--font);
+    }
+    .field-input:focus { border-color: var(--accent); }
+    .field-select {
+      width: 100%;
+      padding: 9px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 12px;
+      outline: none;
+      font-family: var(--font);
+      cursor: pointer;
+    }
+    .field-select:focus { border-color: var(--accent); }
+    .field-select optgroup { color: var(--muted); font-weight: 700; }
+    .field-hint {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+    .field-group { display: flex; flex-direction: column; }
+    .field-row { display: flex; gap: 8px; }
+    .field-row .field-group { flex: 1; }
+
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .check-row input { accent-color: var(--accent); }
+
+    .btn-settings {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface2);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .info-box {
+      background: #6c63ff14;
+      border: 1px solid #6c63ff44;
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .info-box strong { color: var(--text); }
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    /* ── Issues panel ────────────────────────────────── */
+    .issues-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 40px 20px;
+      color: var(--muted);
+      text-align: center;
+    }
+    .empty-icon { font-size: 36px; opacity: 0.4; }
+
+    .issue-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: border-color 0.15s;
+    }
+    .issue-card:hover { border-color: var(--accent); }
+
+    .issue-img {
+      width: 100%;
+      height: 130px;
+      object-fit: cover;
+      object-position: top;
+      display: block;
+      border-bottom: 1px solid var(--border);
+    }
+    .issue-body { padding: 10px 12px; }
+    .issue-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .issue-num { font-size: 11px; color: var(--muted); font-weight: 600; }
+    .issue-sev {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .sev-critical { background: #ff4f6a22; color: #ff4f6a; border: 1px solid #ff4f6a44; }
+    .sev-major    { background: #ff944422; color: #ff9444; border: 1px solid #ff944444; }
+    .sev-minor    { background: #ffe04422; color: #ffe044; border: 1px solid #ffe04444; }
+    .sev-info     { background: #6c63ff22; color: #a09fff; border: 1px solid #6c63ff44; }
+
+    .issue-comment {
+      font-size: 12px;
+      color: var(--text);
+      line-height: 1.5;
+      margin-bottom: 6px;
+    }
+    .issue-url {
+      font-size: 10px;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .issue-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .btn-del {
+      padding: 4px 10px;
+      border-radius: 5px;
+      border: 1px solid var(--border);
+      background: none;
+      color: var(--danger);
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-del:hover { background: #ff4f6a18; border-color: var(--danger); }
+
+    /* ── Export panel ────────────────────────────────── */
+    .export-area {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .export-summary {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      display: flex;
+      gap: 12px;
+    }
+    .stat-box {
+      flex: 1;
+      text-align: center;
+      padding: 8px;
+      background: var(--surface);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .stat-num { font-size: 22px; font-weight: 800; color: var(--accent); }
+    .stat-label { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+    .export-options { display: flex; flex-direction: column; gap: 8px; }
+    .export-label { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 2px; }
+
+    .btn-export {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface2);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.18s;
+    }
+    .btn-export:hover { border-color: var(--accent); background: #6c63ff14; }
+    .btn-export .icon { font-size: 18px; }
+    .btn-export .desc { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+    .btn-clear-all {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ff4f6a44;
+      border-radius: var(--radius);
+      background: none;
+      color: var(--danger);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-clear-all:hover { background: #ff4f6a14; }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .toast {
+      position: fixed;
+      bottom: 12px; left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      background: var(--green);
+      color: #0f1117;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      transition: transform 0.3s ease;
+      z-index: 9999;
+      pointer-events: none;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">
+    <div class="logo-dot"></div>
+    QA Snap
+  </div>
+  <div class="badge">Issues: <span id="issueCount">0</span></div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab-btn active" data-tab="capture">📸 Capture</button>
+  <button class="tab-btn" data-tab="issues">🐛 Issues</button>
+  <button class="tab-btn" data-tab="export">📦 Export</button>
+  <button class="tab-btn" data-tab="integrations">🤖 AI / Editor</button>
+</div>
+
+<!-- PANEL: CAPTURE -->
+<div class="panel active" id="panel-capture">
+  <div class="capture-area">
+    <!-- URL bar -->
+    <div class="url-bar">
+      <div class="dot"></div>
+      <span class="url-text" id="currentUrl">Loading…</span>
+    </div>
+
+    <!-- Pick element -->
+    <button class="btn-pick" id="btnPickElement">🎯 Pick Element on Page (optional)</button>
+    <div class="element-info" id="elementInfo"></div>
+
+    <!-- Issue details + actions (always visible — HTML send does not need screenshot) -->
+    <div class="comment-row">
+      <textarea class="comment-input" id="commentInput" placeholder="Describe the issue — what happened, what was expected…" rows="3"></textarea>
+      <div class="severity-sel">
+        <button class="sev-btn active" data-sev="critical">🔴 Critical</button>
+        <button class="sev-btn" data-sev="major">🟠 Major</button>
+        <button class="sev-btn" data-sev="minor">🟡 Minor</button>
+        <button class="sev-btn" data-sev="info">🔵 Info</button>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-save" id="btnSave">✅ Save Issue</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn-cursor btn-chat" id="btnSendChat">💬 Send to Editor</button>
+      <button class="btn-cursor btn-agent hidden" id="btnSendAgent">☁️ Cloud Agent</button>
+    </div>
+
+    <button class="btn-capture" id="btnCapture">
+      <span>📷</span> Capture Screenshot (optional)
+    </button>
+
+    <!-- Annotator (shown after optional screenshot capture) -->
+    <div class="editor-wrap" id="editorWrap">
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div class="tool-group">
+          <button class="tool-btn active" id="toolPen" title="Pen">✏️</button>
+          <button class="tool-btn" id="toolArrow" title="Arrow">↗</button>
+          <button class="tool-btn" id="toolRect" title="Rectangle">▭</button>
+          <button class="tool-btn" id="toolCircle" title="Circle">○</button>
+          <button class="tool-btn" id="toolText" title="Text">T</button>
+          <button class="tool-btn" id="toolEraser" title="Eraser">⌫</button>
+        </div>
+        <div class="tool-sep"></div>
+        <div class="tool-group">
+          <input type="range" class="size-slider" id="brushSize" min="1" max="20" value="3"/>
+        </div>
+        <div class="tool-sep"></div>
+        <div class="tool-group" id="colorPalette">
+          <div class="color-swatch active" style="background:#ff4f6a" data-color="#ff4f6a"></div>
+          <div class="color-swatch" style="background:#ffe044" data-color="#ffe044"></div>
+          <div class="color-swatch" style="background:#00e5a0" data-color="#00e5a0"></div>
+          <div class="color-swatch" style="background:#6c63ff" data-color="#6c63ff"></div>
+          <div class="color-swatch" style="background:#fff" data-color="#ffffff"></div>
+          <div class="color-swatch" style="background:#000" data-color="#000000"></div>
+        </div>
+        <div class="tool-sep"></div>
+        <button class="tool-btn" id="btnUndo" title="Undo">↩</button>
+        <button class="tool-btn" id="btnClear" title="Clear drawings">🗑</button>
+      </div>
+
+      <!-- Canvas -->
+      <div class="canvas-container">
+        <canvas id="drawCanvas"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL: ISSUES -->
+<div class="panel" id="panel-issues">
+  <div class="issues-area" id="issuesList">
+    <div class="empty-state">
+      <div class="empty-icon">🐛</div>
+      <div>No issues captured yet.<br/>Go to Capture to get started.</div>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL: EXPORT -->
+<div class="panel" id="panel-export">
+  <div class="export-area">
+    <div class="export-summary" id="exportSummary">
+      <div class="stat-box">
+        <div class="stat-num" id="statTotal">0</div>
+        <div class="stat-label">Total Issues</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num" style="color:#ff4f6a" id="statCritical">0</div>
+        <div class="stat-label">Critical</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num" style="color:#ff9444" id="statMajor">0</div>
+        <div class="stat-label">Major</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num" style="color:#ffe044" id="statMinor">0</div>
+        <div class="stat-label">Minor</div>
+      </div>
+    </div>
+
+    <div class="export-label">Download As</div>
+    <div class="export-options">
+      <button class="btn-export" id="btnZip">
+        <span class="icon">📦</span>
+        <div>
+          <div>ZIP Archive</div>
+          <div class="desc">All screenshots + report.html + urls.txt in one zip</div>
+        </div>
+      </button>
+      <button class="btn-export" id="btnHtml">
+        <span class="icon">🌐</span>
+        <div>
+          <div>HTML Report</div>
+          <div class="desc">Standalone visual report with all screenshots inline</div>
+        </div>
+      </button>
+      <button class="btn-export" id="btnJson">
+        <span class="icon">{ }</span>
+        <div>
+          <div>JSON Data</div>
+          <div class="desc">Raw issue data for developers or test management tools</div>
+        </div>
+      </button>
+    </div>
+
+    <button class="btn-clear-all" id="btnClearAll">🗑 Clear All Issues</button>
+  </div>
+</div>
+
+<!-- PANEL: INTEGRATIONS -->
+<div class="panel" id="panel-integrations">
+  <div class="cursor-area">
+    <div class="info-box" id="targetInfoBox">
+      Select your editor or AI agent below. The bridge saves page HTML to <code>.qa-snap/latest.html</code> and opens your tool with the bug report.
+    </div>
+
+    <div class="section-title">Editor / AI Agent</div>
+
+    <div class="field-group">
+      <div class="field-label">Target</div>
+      <select class="field-select" id="editorTarget"></select>
+      <div class="field-hint" id="targetHint"></div>
+    </div>
+
+    <div id="customTargetFields" style="display:none">
+      <div class="field-group">
+        <div class="field-label">CLI command</div>
+        <input class="field-input" id="customCli" type="text" placeholder="my-editor"/>
+        <div class="field-hint">Binary on your PATH used to open the project (e.g. <code>code</code>, <code>cursor</code>)</div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">Open project args</div>
+        <input class="field-input" id="customOpenArgs" type="text" placeholder="-n {projectPath}" value="-n {projectPath}"/>
+        <div class="field-hint">Placeholders: <code>{projectPath}</code></div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">Open file args (optional)</div>
+        <input class="field-input" id="customFileArgs" type="text" placeholder="-g {file}:{line}"/>
+        <div class="field-hint">Placeholders: <code>{file}</code>, <code>{line}</code></div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">Deeplink URL (optional)</div>
+        <input class="field-input" id="customDeeplink" type="text" placeholder="myeditor://chat?prompt={prompt}"/>
+        <div class="field-hint">Placeholders: <code>{prompt}</code> (URL-encoded), <code>{projectPath}</code></div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">Terminal command (optional)</div>
+        <input class="field-input" id="customTerminal" type="text" placeholder="cd {projectPath} && my-agent"/>
+        <div class="field-hint">Runs in a new terminal if no deeplink is set</div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">CLI run command (optional)</div>
+        <input class="field-input" id="customRunArgs" type="text" placeholder="my-agent run --file .qa-snap/latest.md"/>
+        <div class="field-hint">Detached process — first token is the binary</div>
+      </div>
+    </div>
+
+    <div class="section-title">Local Settings</div>
+
+    <div class="field-group">
+      <div class="field-label">Project Path</div>
+      <input class="field-input" id="projectPath" type="text" placeholder="/home/you/projects/my-app"/>
+      <div class="field-hint">Absolute path to the repo your editor should open</div>
+    </div>
+
+    <div class="field-group">
+      <div class="field-label">Bridge URL</div>
+      <input class="field-input" id="bridgeUrl" type="url" value="http://127.0.0.1:9314"/>
+      <div class="field-hint">Local bridge — run <code style="color:var(--accent)">node local-bridge/server.js</code></div>
+    </div>
+
+    <div class="field-row">
+      <button class="btn-settings" id="btnTestBridge" style="flex:1">🔌 Test Bridge</button>
+      <button class="btn-settings" id="btnSaveSettings" style="flex:1">💾 Save Settings</button>
+    </div>
+
+    <div id="cloudAgentSection">
+      <div class="section-title">Cursor Cloud Agent (optional)</div>
+
+      <div class="field-group">
+        <div class="field-label">Cursor API Key</div>
+        <input class="field-input" id="cursorApiKey" type="password" placeholder="cursor_…" autocomplete="off"/>
+        <div class="field-hint">Get your key from <a href="https://cursor.com/dashboard/integrations" target="_blank" style="color:var(--accent)">Cursor Dashboard → Integrations</a></div>
+      </div>
+
+      <button class="btn-settings" id="btnVerifyKey">🔑 Verify API Key</button>
+
+      <div class="field-group">
+        <div class="field-label">GitHub Repository (optional)</div>
+        <input class="field-input" id="repoUrl" type="url" placeholder="https://github.com/org/repo"/>
+        <div class="field-hint">When set, Cursor agent clones this repo to investigate and fix the bug</div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-group">
+          <div class="field-label">Branch</div>
+          <input class="field-input" id="repoBranch" type="text" placeholder="main" value="main"/>
+        </div>
+        <div class="field-group">
+          <div class="field-label">Model</div>
+          <input class="field-input" id="modelId" type="text" placeholder="composer-2" value="composer-2"/>
+        </div>
+      </div>
+
+      <label class="check-row">
+        <input type="checkbox" id="continueThread"/>
+        Continue in same Cursor thread (follow-up messages)
+      </label>
+
+      <div class="field-group" id="agentIdGroup" style="display:none">
+        <div class="field-label">Active Agent ID</div>
+        <input class="field-input" id="cursorAgentId" type="text" readonly placeholder="Set after first send"/>
+        <div class="field-hint">Follow-up issues go to this agent when "Continue thread" is checked</div>
+      </div>
+
+      <button class="btn-settings" id="btnNewThread" style="color:var(--muted)">🔄 New Cloud Agent Thread</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="editor-targets.js"></script>
+<script src="issue-prompt.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>

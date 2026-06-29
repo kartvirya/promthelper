@@ -1,0 +1,8 @@
+{
+  "name": "qa-snap-local-bridge",
+  "private": true,
+  "description": "Local bridge to open any editor/AI agent with project path and bug report",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
